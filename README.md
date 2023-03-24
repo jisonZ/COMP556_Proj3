@@ -2,6 +2,7 @@
 Comp556 Project 3
 
 Group members
+
 Haochen Zhang (jz118@rice.edu)
 
 Jinlin Li (jl288@rice.edu)
