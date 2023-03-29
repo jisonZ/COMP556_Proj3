@@ -2,6 +2,8 @@
 #define ROUTINGPROTOCOLIMPL_H
 
 #include "RoutingProtocol.h"
+#include "DVManager.h"
+#include <unordered_map>
 
 class RoutingProtocolImpl : public RoutingProtocol {
   public:
@@ -37,6 +39,13 @@ class RoutingProtocolImpl : public RoutingProtocol {
 
  private:
     Node *sys; // To store Node object; used to access GSR9999 interfaces 
+
+
+    eProtocolType protocol_type;
+    unsigned short router_id;
+    unsigned short num_ports;
+    DVManager dvm;
+    
 };
 
 #endif
