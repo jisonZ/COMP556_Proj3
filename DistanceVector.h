@@ -9,7 +9,6 @@ using portStatus_pointer = unordered_map<port_number, PortEntry>*;
 using forwarding_pointer = unordered_map<router_id, router_id>*;
 using DVTable_pointer =unordered_map<router_id, DVEntry>*;
 
-
 class DistanceVector {
 public:
     void init(Node* sys, router_id routerId, unsigned short numPorts, neighbors_pointer neighbors,
@@ -23,7 +22,11 @@ public:
 
     void insertDVEntry(router_id destId, cost_time cost, router_id next_hop_id);
 
-    void deleteDVTable(router_id destId);
+    void deleteDVEntry(router_id destId);
+
+    void sendPacket(DVL& DVList);
+
+    void sendPacket();
 
 private:
     Node *sys;
@@ -31,7 +34,7 @@ private:
     unsigned short numOfPorts;
     neighbors_pointer neighbors; // pointer reference, initialized by RoutingProtodcolImpl.cc
     portStatus_pointer portStatus;  // ...
-    forwarding_pointer fowardingTable; // ...
+    forwarding_pointer forwardingTable; // ...
     DVTable_pointer DVTable; // new
 };
 

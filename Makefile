@@ -15,7 +15,9 @@ HEADRES =\
 	Link.h\
 	Node.h\
 	RoutingProtocol.h\
-	Simulator.h
+	Simulator.h\
+	utils.h\
+	DistanceVector.h
 
 %.o: %.cc
 	$(CC) $(COPTS) -c $< -o $@
@@ -31,6 +33,7 @@ Link.o: Event.h Link.h Node.h Simulator.h
 Node.o: Event.h Link.h Node.h Simulator.h
 Simulator.o: Event.h Link.h Node.h RoutingProtocol.h Simulator.h 
 RoutingProtocolImpl.o: RoutingProtocolImpl.h
+
 
 clean:
 	rm -f *.o Simulator

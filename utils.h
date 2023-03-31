@@ -2,6 +2,7 @@
 #define UTILS_H
 
 #include <arpa/inet.h>
+
 #include "global.h"
 using std::vector;
 using std::pair;
@@ -12,7 +13,7 @@ using time_stamp = unsigned int;
 using PacketInfo = pair<unsigned short, unsigned short>;
 using DVL = vector<PacketInfo>; 
 
-enum alarmType {
+enum eAlarmType {
   SendPINGPONG,
   SendDV,
   SendLS,
