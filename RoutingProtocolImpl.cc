@@ -1,70 +1,246 @@
 #include "RoutingProtocolImpl.h"
 
-RoutingProtocolImpl::RoutingProtocolImpl(Node *n) : RoutingProtocol(n) {
+int RoutingProtocolImpl::PingPongPacketSize = 12;
+
+RoutingProtocolImpl::RoutingProtocolImpl(Node *n) : RoutingProtocol(n)
+{
   sys = n;
   // add your own code
 }
 
-RoutingProtocolImpl::~RoutingProtocolImpl() {
+RoutingProtocolImpl::~RoutingProtocolImpl()
+{
   // add your own code (if needed)
 }
 
-void RoutingProtocolImpl::init(unsigned short num_ports, unsigned short router_id, eProtocolType protocol_type) {
-  // add your own code
-    num_ports = num_ports;
-    routerID = router_id;
-    protocol_type = protocol_type;
+void RoutingProtocolImpl::sendPingPongPacket()
+{
+  int size = 8 + 4; // header + timestamp
+  for (unsigned int i = 0; i < num_ports; i++)
+  {
+    char *PingPongPacket = (char *)malloc(sizeof(char) * size);
 
-    char *ping_pong_alarm = new char[sizeof(eAlarmType)];
-    char *dv_alarm = new char[sizeof(eAlarmType)];
-    char *expire_alarm = new char[sizeof(eAlarmType)];
-    *((eAlarmType *)ping_pong_alarm) = SendPINGPONG;
-    *((eAlarmType *)dv_alarm) = SendDV;
-    *((eAlarmType *)expire_alarm) = SendExpire;
-
-    createPingPongMessage();
-
-    sys->set_alarm(this, 1000, expire_alarm);
-    sys->set_alarm(this, 10 * 1000, ping_pong_alarm);
-    sys->set_alarm(this, 30 * 1000, dv_alarm);
-    
-    dv.init(sys, router_id, num_ports, &neighbors, &portStatus, &forwardTable);
-}
-
-void RoutingProtocolImpl::handle_alarm(void *data) {
-  // add your own code
-
-
-}
-
-void RoutingProtocolImpl::recv(unsigned short port, void *packet, unsigned short size) {
-  // add your own code
-  ePacketType t = getPktType(packet);
-  switch (t) {
-    case DATA:
-
-    case PING:
-
-    case PONG:
-
-
-    case DV:
-      if (protocol_type == P_DV) {
-        dv.recvPacket(port, packet, size);
-      } else {
-        cerr << "unexpected protocol msg" << endl;
-        exit(1);
-      }
-
-    case LS:
-      //
-    default:
-      cerr << "unexpected msg type" << endl;
-      exit(1);
+    *PingPongPacket = (unsigned char)PING;
+    *(unsigned short *)(PingPongPacket + 2) = htons(size);                       // size
+    *(unsigned short *)(PingPongPacket + 4) = htons(routerID);                   // source ID
+    *(unsigned short *)(PingPongPacket + 6) = htons(portStatus[i].to_router_id); // destination ID
+    *(unsigned int *)(PingPongPacket + 8) = htonl(sys->time());                  // timestamp
+    sys->send(i, PingPongPacket, PingPongPacketSize);
   }
 }
 
-void RoutingProtocolImpl::sendData() {
-  
+void RoutingProtocolImpl::handlePingPongPacket(port_number port, void *packet)
+{
+  char *data = reinterpret_cast<char *>(packet);
+  ePacketType type = getPktType(packet);
+  if (type == PING)
+  {
+    *data = (unsigned char)PONG;
+    unsigned short target_id = *(unsigned short *)(data + 4);
+    *(unsigned short *)(data + 4) = htons(routerID);
+    *(unsigned short *)(data + 6) = htons(target_id);
+    *(unsigned int *)(data + 8) = htonl(sys->time());
+    sys->send(port, data, PingPongPacketSize);
+  }
+  else if (type == PONG)
+  {
+    time_stamp cur_time = sys->time();
+    time_stamp timestamp = ntohl(*(unsigned int *)(data + 8));
+    cost_time RTT = static_cast<cost_time>(cur_time - timestamp);
+    router_id neighbor_id = ntohs(*(unsigned short *)(data + 4));
+
+    // update ports table
+    portStatus[port].to_router_id = neighbor_id;
+    portStatus[port].cost = RTT;
+    portStatus[port].last_update_time = cur_time;
+    bool is_connect = portStatus[port].is_connected;
+    portStatus[port].is_connected = true;
+    
+    // update direct neighbors table
+    if (neighbors.count(neighbor_id) && is_connect)
+    { // already connected before, just update cost
+      neighbors[neighbor_id].port = port;
+      cost_time old_RTT = neighbors[neighbor_id].cost;
+      neighbors[neighbor_id].cost = RTT;
+      int RTT_diff = RTT - old_RTT;
+      if (RTT_diff != 0)
+      { // cost changes
+        for (auto &entry : *(dv.DVTable))
+        {
+          if (entry.second.next_hop_id == neighbor_id)
+          { // is a next_hop of some destinations
+            unsigned int new_RTT = entry.second.cost + RTT_diff;
+            if (neighbors.count(entry.first) && neighbors[entry.first].cost < new_RTT)
+            { // now a direct neighbor is better
+              entry.second.next_hop_id = entry.first;
+              entry.second.cost = neighbors[entry.first].cost;
+              forwardTable[entry.first] = entry.first;
+            }
+            else
+            {                                // otherwise, use current route and just update cost
+              entry.second.cost += RTT_diff; // may not best route anymore if cost increases
+            }
+            entry.second.last_update_time = sys->time();
+          }
+          else if (entry.first == neighbor_id && RTT < (*dv.DVTable)[neighbor_id].cost)
+          { // is a direct neighbor destination
+            entry.second.next_hop_id = neighbor_id;
+            entry.second.cost = RTT;
+            forwardTable[neighbor_id] = neighbor_id;
+            entry.second.last_update_time = sys->time();
+          }
+        }
+        dv.sendPacket();
+      }
+      else
+      {
+        for (auto entry : *dv.DVTable)
+        {
+          if (entry.second.next_hop_id == neighbor_id || entry.first == neighbor_id)
+          {
+            entry.second.last_update_time = sys->time();
+          }
+        }
+      }
+    }
+    else
+    { // find a new neighbor or re-connect
+      neighbors[neighbor_id] = {port, static_cast<unsigned short>(RTT)};
+      if (dv.DVTable->count(neighbor_id) && !is_connect)
+      { // re-connect a neighbor, may change best route for itself
+        if (RTT < (*dv.DVTable)[neighbor_id].cost)
+        { // if direct route is better
+          dv.updateDVTable(neighbor_id, RTT, neighbor_id);
+          dv.sendPacket();
+        }
+        else
+        {
+          (*dv.DVTable)[neighbor_id].last_update_time = sys->time();
+        }
+      }
+      else
+      { // new neighbor that first time appears
+        dv.insertDVEntry(neighbor_id, RTT, neighbor_id);
+        dv.sendPacket();
+      }
+      forwardTable[neighbor_id] = neighbor_id;
+    }
+  }
 }
 
+void RoutingProtocolImpl::init(unsigned short num_ports, unsigned short router_id, eProtocolType protocol_type)
+{
+  // add your own code
+  num_ports = num_ports;
+  routerID = router_id;
+  protocol_type = protocol_type;
+
+  char *ping_pong_alarm = new char[sizeof(eAlarmType)];
+  char *dv_alarm = new char[sizeof(eAlarmType)];
+  char *expire_alarm = new char[sizeof(eAlarmType)];
+  *((eAlarmType *)ping_pong_alarm) = SendPINGPONG;
+  *((eAlarmType *)dv_alarm) = SendDV;
+  *((eAlarmType *)expire_alarm) = SendCheck;
+
+  sendPingPongPacket();
+
+  sys->set_alarm(this, 1000, expire_alarm);
+  sys->set_alarm(this, 10 * 1000, ping_pong_alarm);
+  sys->set_alarm(this, 30 * 1000, dv_alarm);
+
+  dv.init(sys, router_id, num_ports, &neighbors, &portStatus, &forwardTable);
+}
+
+void RoutingProtocolImpl::handle_alarm(void *data)
+{
+  // add your own code
+  eAlarmType type = (*((eAlarmType*)data));
+    switch (type) {
+        case SendPINGPONG:
+            // generate ping pong message every 10 seconds
+            sendPingPongPacket();
+            sys->set_alarm(this, 10 * 1000, data);
+            break;
+
+        case SendDV:
+            // send DV update every 30 seconds
+            if (protocol_type == P_DV) {
+                dv.sendPacket();
+            }
+            sys->set_alarm(this, 30 * 1000, data);
+            break;
+
+        case SendCheck:
+            // check link expiration every 1 second
+            if (protocol_type == P_DV) {
+                dv.checklink();
+            }
+            sys->set_alarm(this, 1000, data);
+            break;
+
+        default:
+            cerr << "unexpected alarm type" << endl;
+            exit(1);
+    }
+}
+
+void RoutingProtocolImpl::recv(unsigned short port, void *packet, unsigned short size)
+{
+  // add your own code
+  ePacketType t = getPktType(packet);
+  switch (t)
+  {
+  case DATA:
+    sendData(port, packet);
+    break;
+  case PING:
+  case PONG:
+    handlePingPongPacket(port, packet);
+    break;
+
+  case DV:
+    if (protocol_type == P_DV)
+    {
+      dv.recvPacket(port, packet, size);
+    }
+    else
+    {
+      cerr << "unexpected protocol msg" << endl;
+      exit(1);
+    }
+
+  case LS:
+    // Implement LS
+    break;
+    //
+  default:
+    cerr << "unexpected msg type" << endl;
+    exit(1);
+  }
+}
+
+void RoutingProtocolImpl::sendData(port_number port, void * packet)
+{
+  ePacketType t = getPktType(packet);
+  if (t != DATA)
+  {
+    cerr << "packet should be" << t << endl;
+    exit(1);
+  }
+  auto sp = reinterpret_cast<unsigned short * > (packet);
+  router_id target_router_id = ntohs(*(sp + 3));
+  if (target_router_id == routerID)
+  {
+    delete[] packet;
+    return;
+  }
+
+  if (forwardTable.find(target_router_id) == forwardTable.end())
+  {
+    cout << "No Entry in Forward Table, Refuse to Send" << endl;
+    return;
+  }
+  unsigned short size = *(reinterpret_cast<unsigned short *> (packet) + 1);
+  router_id next_router = forwardTable[target_router_id];
+  sys->send(neighbors[next_router].port, packet, size);
+}

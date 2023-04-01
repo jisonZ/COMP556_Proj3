@@ -7,7 +7,9 @@ OBJS =\
 	Link.o\
 	Node.o\
 	RoutingProtocolImpl.o\
-	Simulator.o
+	Simulator.o\
+	DistanceVector.o\
+	utils.o
 
 HEADRES =\
 	global.h\
@@ -32,8 +34,9 @@ Event.o: Event.h Link.h Node.h Simulator.h
 Link.o: Event.h Link.h Node.h Simulator.h
 Node.o: Event.h Link.h Node.h Simulator.h
 Simulator.o: Event.h Link.h Node.h RoutingProtocol.h Simulator.h 
-RoutingProtocolImpl.o: RoutingProtocolImpl.h
-
+RoutingProtocolImpl.o: RoutingProtocolImpl.h DistanceVector.h
+DistanceVector.o: DistanceVector.h
+utils.o: utils.h
 
 clean:
 	rm -f *.o Simulator
