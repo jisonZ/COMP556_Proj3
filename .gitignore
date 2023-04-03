@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+# txt
+google.txt
+out.txt
+simpletest1.txt
+simpletest2.txt

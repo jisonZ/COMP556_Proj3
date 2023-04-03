@@ -1,8 +1,9 @@
 #include "DistanceVector.h"
 
-void DistanceVector::init(Node *sys, router_id routerId, unsigned short numPorts, neighbors_pointer neighbors,
+void DistanceVector::init(Node *sys, router_id routerId, unsigned short numPorts, neighbors_pointer neighbors,\
                           portStatus_pointer portStatus, forwarding_pointer forwarding)
 {
+    // initialize tables and neighbor information
     this->sys = sys;
     this->routerId = routerId;
     this->numOfPorts = numPorts;
@@ -15,11 +16,25 @@ void DistanceVector::init(Node *sys, router_id routerId, unsigned short numPorts
 void DistanceVector::recvPacket(port_number port, void *packet, unsigned short size)
 {
     DVL DVList;
-    changeDVPacketToPacketInfo(packet, DVList);  // extract source id and (neighbor, cost) information from packet
-    router_id source_router_id = DVList[0].first;
-    insertNeighbors(source_router_id, port, DVList);  // insert new neighbor to neighbors list
-    insertDVEntry(source_router_id, neighbors->find(source_router_id)->second.cost, source_router_id);
 
+    //cout << "rDistanceVector::recvPacket()" << endl;
+    // extract source id and (neighbor, cost) information from packet
+    changeDVPacketToPacketInfo(packet, DVList); 
+    //cout << "Convert DV Packet to DVList " << endl;
+    router_id source_router_id = DVList[0].first;
+    //cout << "Get source router_id " << source_router_id << endl;
+
+    // insert new neighbor if neighbor is not registered
+    //cout << "DVList : \n";
+    // for (auto& entry : DVList)
+    // {
+    //     cout << entry.first << " " << entry.second << endl;
+    // }
+    insertNeighbors(source_router_id, port, DVList); 
+    //cout << "Insert Neighbor\n" << endl;
+    
+    insertDVEntry(source_router_id, neighbors->find(source_router_id)->second.cost, source_router_id);
+    //cout << "Insert Entry\n";
     auto source_iterator = DVTable->find(source_router_id);
 
     if (source_iterator == DVTable->end())
@@ -31,6 +46,7 @@ void DistanceVector::recvPacket(port_number port, void *packet, unsigned short s
     cost_time source_cost = (source_iterator->second).cost;
     DVL new_packet_list{};
     // Update the neighbors
+    
 
     for (auto it = DVList.begin() + 1; it != DVList.end(); ++it)
     {
@@ -38,12 +54,13 @@ void DistanceVector::recvPacket(port_number port, void *packet, unsigned short s
         cost_time recv_cost = it->second;
 
         auto cit = DVTable->find(target_router_id);
+        if (cit == DVTable->end()) continue;
 
         if (recv_cost == INFINITY_COST)
         {
             // Poison Reverse
-            if (cit == DVTable->end())
-                continue;
+            // if (cit == DVTable->end())
+            //     continue;
             if (cit->second.next_hop_id != source_router_id)
                 continue;
             if (neighbors->find(target_router_id) != neighbors->end())
@@ -88,8 +105,10 @@ void DistanceVector::recvPacket(port_number port, void *packet, unsigned short s
             }
         }
     }
-    if (!new_packet_list.empty())
+    
+    if (!new_packet_list.empty()) {
         sendPacket(new_packet_list);
+    }
 }
 
 void DistanceVector::insertNeighbors(router_id neighborId, port_number port, DVL &DVList)
@@ -98,13 +117,10 @@ void DistanceVector::insertNeighbors(router_id neighborId, port_number port, DVL
     if (neighbors->find(neighborId) != neighbors->end())
         return;
 
-    int numNeighbors = DVList.size();
-    for (int i = 1; i < numNeighbors; ++i)
-    {
-        // locate the entry for self, insert to self's neighbors list
-        if (DVList[i].first == routerId)
-        {
-            Neighbor newNeighbor(port, DVList[i].second);
+    // search for self routerID and cost
+    for (auto& n : DVList) {
+        if (n.first == routerId) {
+            Neighbor newNeighbor(port, n.second);
             (*neighbors)[neighborId] = newNeighbor;
             break;
         }
@@ -123,6 +139,7 @@ void DistanceVector::updateDVTable(router_id destId, cost_time cost, router_id n
 void DistanceVector::insertDVEntry(router_id destId, cost_time cost, router_id next_hop_id)
 {
     DVEntry de{next_hop_id, cost, sys->time()};
+    
     (*DVTable)[destId] = de;
     (*forwardingTable)[destId] = next_hop_id;
 }
@@ -135,18 +152,30 @@ void DistanceVector::deleteDVEntry(router_id destId)
 void DistanceVector::sendPacket(DVL &DVList)
 {
     // Based on port to send packet
+    // cout << "Send Packet's DVList" << endl;
+    // for(auto &ent : DVList){
+    //     cout << ent.first << " " << ent.second << endl;
+    // }
+    // cout << "send DV Packet" << endl;
     unsigned int size = DVList.size() * 4 + 8;
-    char *msg = new char[size];
-    *msg = (unsigned char)DV;
-    auto packet = (unsigned short *)msg;
-    *(packet + 1) = htons(size);
-    *(packet + 2) = htons(routerId);
-
+    
+    
     for (port_number port_id = 0; port_id < numOfPorts; ++port_id)
     {
+        char *msg = new char[size];
+        *msg = (unsigned char)DV;
+        auto packet = (unsigned short *)msg;
+        *(packet + 1) = htons(size);
+        *(packet + 2) = htons(routerId);
+        // cout << "Router ID: " << routerId << endl;
         auto pit = portStatus->find(port_id);
+        if (pit == portStatus->end()) continue;
         if (!(pit->second.is_connected))
             continue;
+        // add destination
+        *(packet + 3) = htons(pit->second.to_router_id);
+        // cout << "Destination: " << pit->second.to_router_id << endl;
+        // iterate DV List
         uint32_t index = 0;
         for (auto &dv : DVList)
         {
@@ -156,23 +185,25 @@ void DistanceVector::sendPacket(DVL &DVList)
             *(packet + 4 + index++) = htons(target_router_id);
             *(packet + 4 + index++) = htons(cost);
         }
-        *(packet + 3) = htons(pit->second.to_router_id);
         sys->send(port_id, msg, size);
     }
-    delete[] msg;
 }
 
 void DistanceVector::sendPacket()
 {
     DVL DVList{};
     for (auto it = DVTable->begin(); it != DVTable->end(); ++it)
-        DVList.push_back({it->first, it->second.cost});
+    {
+        // cout << it->first << " " << it->second.cost << endl;
+        DVList.emplace_back(it->first, it->second.cost);
+    }
+       
     sendPacket(DVList);
 }
 
 void DistanceVector::checklink()
 {
-    auto pairs = new DVL{};
+    auto pairs = DVL{};
     for (auto &port : *portStatus)
     {
         if (!port.second.is_connected || sys->time() - port.second.last_update_time <= 15 * 1000)
@@ -186,11 +217,11 @@ void DistanceVector::checklink()
         {
             neighbors->erase(disconnectedNeighbor);
         }
-        removeInvalidDVEntry(*pairs, disconnectedNeighbor);
+        removeInvalidDVEntry(pairs, disconnectedNeighbor);
     }
-    if (!pairs->empty())
+    if (!pairs.empty())
     {
-        sendPacket(*pairs);
+        sendPacket(pairs);
     }
 }
 

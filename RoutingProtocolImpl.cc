@@ -16,10 +16,13 @@ RoutingProtocolImpl::~RoutingProtocolImpl()
 void RoutingProtocolImpl::sendPingPongPacket()
 {
   int size = 8 + 4; // header + timestamp
+
   for (unsigned int i = 0; i < num_ports; i++)
   {
+    // for (auto& en: portStatus)
+    //   cout << en.first << " : " << en.second.to_router_id  << " " << endl;
+    
     char *PingPongPacket = (char *)malloc(sizeof(char) * size);
-
     *PingPongPacket = (unsigned char)PING;
     *(unsigned short *)(PingPongPacket + 2) = htons(size);                       // size
     *(unsigned short *)(PingPongPacket + 4) = htons(routerID);                   // source ID
@@ -131,13 +134,14 @@ void RoutingProtocolImpl::handlePingPongPacket(port_number port, void *packet)
 void RoutingProtocolImpl::init(unsigned short num_ports, unsigned short router_id, eProtocolType protocol_type)
 {
   // add your own code
-  num_ports = num_ports;
-  routerID = router_id;
-  protocol_type = protocol_type;
+  this->num_ports = num_ports;
+  this->routerID = router_id;
+  this->protocol_type = protocol_type;
 
   char *ping_pong_alarm = new char[sizeof(eAlarmType)];
   char *dv_alarm = new char[sizeof(eAlarmType)];
   char *expire_alarm = new char[sizeof(eAlarmType)];
+
   *((eAlarmType *)ping_pong_alarm) = SendPINGPONG;
   *((eAlarmType *)dv_alarm) = SendDV;
   *((eAlarmType *)expire_alarm) = SendCheck;
@@ -157,12 +161,14 @@ void RoutingProtocolImpl::handle_alarm(void *data)
   eAlarmType type = (*((eAlarmType*)data));
     switch (type) {
         case SendPINGPONG:
+            // cout << "handle alarm PINGPONG" << endl;
             // generate ping pong message every 10 seconds
             sendPingPongPacket();
             sys->set_alarm(this, 10 * 1000, data);
             break;
 
         case SendDV:
+            // cout << "handle alarm DV" << endl;
             // send DV update every 30 seconds
             if (protocol_type == P_DV) {
                 dv.sendPacket();
@@ -171,6 +177,7 @@ void RoutingProtocolImpl::handle_alarm(void *data)
             break;
 
         case SendCheck:
+            // cout << "handle alarm check expire" << endl;
             // check link expiration every 1 second
             if (protocol_type == P_DV) {
                 dv.checklink();
@@ -186,19 +193,24 @@ void RoutingProtocolImpl::handle_alarm(void *data)
 
 void RoutingProtocolImpl::recv(unsigned short port, void *packet, unsigned short size)
 {
-  // add your own code
+  // cout << "router " << routerID << " receiving..." << endl;
+  // cout << "port " << port << " Info " << portStatus[port].to_router_id << endl;
   ePacketType t = getPktType(packet);
+
   switch (t)
   {
   case DATA:
+    // cout << "receiving DATA..." << endl;
     sendData(port, packet);
     break;
-  case PING:
-  case PONG:
+    
+  case PING: case PONG:
+    // cout << "receiving PING/PONG..." << endl;
     handlePingPongPacket(port, packet);
     break;
 
   case DV:
+    // cout << "receiving DV..." << endl;
     if (protocol_type == P_DV)
     {
       dv.recvPacket(port, packet, size);
@@ -210,11 +222,12 @@ void RoutingProtocolImpl::recv(unsigned short port, void *packet, unsigned short
     }
 
   case LS:
+    // cout << "receiving LS..." << endl;
     // Implement LS
     break;
     //
   default:
-    cerr << "unexpected msg type" << endl;
+    cerr << "unexpected msg type " << t << endl;
     exit(1);
   }
 }

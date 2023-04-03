@@ -4,9 +4,13 @@
 #include "Node.h"
 #include "utils.h"
 
+// neighbor_ID -> [neighbor_port, neighbor_cost]
 using neighbors_pointer = unordered_map<router_id, Neighbor> *;
+// port_number -> [to_router_id, cost, last_update_time, is_connect]
 using portStatus_pointer = unordered_map<port_number, PortEntry> *;
+// dest_ID -> next_hop_id
 using forwarding_pointer = unordered_map<router_id, router_id> *;
+// dest_ID -> [next_hop_id, cost, last_update_time]
 using DVTable_pointer = unordered_map<router_id, DVEntry> *;
 
 class DistanceVector
