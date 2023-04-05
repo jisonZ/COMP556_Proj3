@@ -3,6 +3,7 @@
 
 #include "RoutingProtocol.h"
 #include "DistanceVector.h"
+#include "LinkState.h"
 #include <unordered_map>
 
 class RoutingProtocolImpl : public RoutingProtocol
@@ -45,20 +46,21 @@ public:
 
   void handlePingPongPacket(port_number port, void *packet);
 
+  bool port_check();
+
 private:
   Node *sys; // To store Node object; used to access GSR9999 interfaces
 
   eProtocolType protocol_type;
   unsigned short routerID;
   unsigned short num_ports;
-
-  DistanceVector dv;
-  // LinkState ls;
-
-  unordered_map<router_id, Neighbor> neighbors;
   unordered_map<port_number, PortEntry> portStatus;
   unordered_map<router_id, router_id> forwardTable;
+  unordered_map<router_id, Neighbor> neighbors;
   static int PingPongPacketSize;
+
+  DistanceVector dv;
+  LinkState ls;
 };
 
 #endif

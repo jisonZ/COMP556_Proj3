@@ -4,6 +4,7 @@
 #include <arpa/inet.h>
 #include <unordered_map>
 #include <unordered_set>
+#include <set>
 
 #include "global.h"
 using std::pair;
@@ -13,12 +14,17 @@ using std::cerr;
 using std::endl;
 using std::unordered_set;
 using std::unordered_map;
+using std::set;
 using port_number = unsigned short;
 using router_id = unsigned short;
 using cost_time = unsigned short;
 using time_stamp = unsigned int;
+using seq_num = unsigned int;
+
 using PacketInfo = pair<unsigned short, unsigned short>;
+
 using DVL = vector<PacketInfo>;
+using LSL = vector<PacketInfo>;
 
 enum eAlarmType
 {
@@ -50,42 +56,18 @@ struct DVEntry
   cost_time cost;
   time_stamp last_update_time;
   DVEntry() {}
-  DVEntry(router_id next_hop_id, cost_time cost, time_stamp last_update_time) : next_hop_id(next_hop_id), cost(cost), \ 
-  last_update_time(last_update_time) {}
+  DVEntry(router_id next_hop_id, cost_time cost, time_stamp last_update_time) : next_hop_id(next_hop_id), cost(cost), last_update_time(last_update_time) {}
 };
 
-// struct PacketInfo {
-//   router_id router;
-//   cost_time cost;
-// };
-
-// void changeDVPacketToPacketInfo(void *start, vector<PacketInfo> &pktInfo)
-// {
-//   /*
-//    * start: The DV packet,
-//    * size : How many bytes of the DV packet
-//    */
-//   unsigned short *packet_start = (unsigned short *)start; //
-//   unsigned short size = ntohs(*(packet_start + 1));       // Get Size of DV packet
-//   size -= 4;                                              // Delete First Row (Packet Type, Reserved, Size)
-//   size /= 4;                                              // Return How Many Rows of DV data
-//   unsigned short first, second;
-//   size_t i;
-//   for (i = 0; i < size; ++i)
-//   {
-//     first = ntohs(*((unsigned short *)start + i * 2));
-//     second = ntohs(*((unsigned short *)start + i * 2 + 1));
-//     pktInfo.push_back(static_cast<PacketInfo>(make_pair(first, second)));
-//   }
-//   return;
-// };
-
-// ePacketType getPktType(void *packet)
-// {
-//   return *((ePacketType *)packet);
-// };
+// neighbor_ID -> [neighbor_port, neighbor_cost]
+using neighbors_pointer = unordered_map<router_id, Neighbor> *;
+// port_number -> [to_router_id, cost, last_update_time, is_connect]
+using portStatus_pointer = unordered_map<port_number, PortEntry> *;
+// dest_ID -> next_hop_id
+using forwarding_pointer = unordered_map<router_id, router_id> *;
 
 void changeDVPacketToPacketInfo(void *start, vector<PacketInfo> &pktInfo);
+void getLSinfo(void *packet, unordered_map<router_id, cost_time> &LSlist, seq_num &seqNum, router_id& routerID);
 ePacketType getPktType(void *packet);
 
 #endif
