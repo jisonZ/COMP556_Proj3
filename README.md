@@ -1,4 +1,4 @@
-# COMP556 Project 3: Intra-Domain Routing Protocols
+# COMP 556 Project 3: Intra-Domain Routing Protocols
 
 ### Group members
 * Haochen Zhang (jz118@rice.edu)
