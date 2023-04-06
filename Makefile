@@ -1,6 +1,6 @@
 CC = g++
-COPTS = -g -Wall -std=c++11
-LKOPTS = 
+COPTS = -std=c++11 -g -Wall 
+LKOPTS =
 
 OBJS =\
 	Event.o\
