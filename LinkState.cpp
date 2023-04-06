@@ -1,5 +1,5 @@
 #include "LinkState.h"
-
+#include <cstring>
 void LinkState::init(Node *sys, router_id id, port_number num_port, neighbors_pointer neighbors, portStatus_pointer por, forwarding_pointer fwtp)
 {
     this->sys = sys;
@@ -18,10 +18,12 @@ void LinkState::recv_LSP(port_number port, void *packet, unsigned short size)
 
     getLSinfo(packet, cost_map_entry, incomingSeq, sourceID);
 
-    if (seq_map.find(sourceID) == seq_map.end() || seq_map[sourceID] < incomingSeq) {
+    if (seq_map.find(sourceID) == seq_map.end() || seq_map[sourceID] < incomingSeq)
+    {
         seq_map[sourceID] = incomingSeq;
 
-        if (cost_map_updated(sourceID, cost_map_entry)) {
+        if (cost_map_updated(sourceID, cost_map_entry))
+        {
             cost_map[sourceID] = cost_map_entry;
             update_lsp_table();
         }
@@ -30,26 +32,6 @@ void LinkState::recv_LSP(port_number port, void *packet, unsigned short size)
     }
 }
 
-// void LinkState::recv_LSP(port_number port, void *packet, unsigned short size)
-// {
-//     unordered_map<router_id, cost_time> cost_map_entry;
-//     seq_num incomingSeq;
-//     router_id sourceID;
-
-//     getLSinfo(packet, cost_map_entry, incomingSeq, sourceID);
-
-//     if (seq_map.count(sourceID) == 0 || (seq_map.count(sourceID) == 1 && seq_map[sourceID] < incomingSeq))
-//     {
-//         // update topology if seqnum is larger
-//         seq_map[sourceID] = incomingSeq;
-//         cost_map[sourceID] = cost_map_entry;
-//         // recompute fowarding table using dijistra
-//         update_lsp_table();
-//         // flood LSP
-//         flood_LSP(port, packet, size);
-//     }
-// }
-
 void LinkState::flood_LSP(port_number except_port_id, void *packet, unsigned short size)
 {
     for (port_number portID = 0; portID < numOfPorts; ++portID)
@@ -57,37 +39,42 @@ void LinkState::flood_LSP(port_number except_port_id, void *packet, unsigned sho
         // avoid flooding LSP to incoming port
         if (portID == except_port_id)
             continue;
-        sys->send(portID, packet, size);
+        char *new_data = strdup(static_cast<char *>(packet));
+        sys->send(portID, new_data, size);
     }
+    free(packet);
 }
 
-void LinkState::sendPacket() {
-    unsigned int size = (*neighbors).size()*4+12;
-    
-    for (port_number port_id = 0; port_id < numOfPorts; ++port_id) {
-         // continue if port is detached
+void LinkState::sendPacket()
+{
+    unsigned int size = (*neighbors).size() * 4 + 12;
+
+    for (port_number port_id = 0; port_id < numOfPorts; ++port_id)
+    {
+        // continue if port is detached
         auto pit = portStatus->find(port_id);
         if (pit == portStatus->end() || !(pit->second.is_connected))
             continue;
 
-        char* msg = new char[size];
+        char *msg = new char[size];
         *msg = (unsigned char)LS;
-        auto packet = (unsigned short*)msg;
+        auto packet = (unsigned short *)msg;
         *(packet + 1) = htons(size);
         *(packet + 2) = htons(routerID);
-        *((unsigned int*)(packet + 4)) = htonl(SeqNum); 
+        *((unsigned int *)(packet + 4)) = htonl(SeqNum);
 
         uint32_t index = 0;
-        
+
         // iterate neighbor
-        for (auto& nei : (*neighbors)) {
+        for (auto &nei : (*neighbors))
+        {
             auto neighbor_id = nei.first;
             auto cost = nei.second.cost;
 
             *(packet + 6 + index++) = htons(neighbor_id);
             *(packet + 6 + index++) = htons(cost);
         }
-        sys->send(port_id, msg, size);         
+        sys->send(port_id, msg, size);
     }
 }
 
@@ -99,10 +86,9 @@ void LinkState::update_lsp_table()
     unordered_set<router_id> unvisited_routers;
     // for (auto it = cost_map[1].begin(); it != cost_map[1].end(); ++it)
     // {
-    //     cout << it->first<< " " << it->second << endl; 
+    //     cout << it->first<< " " << it->second << endl;
     // }
     // cout << "End Cost Map" << endl;
-    
 
     // Add adjacent routers to root router to D
     for (auto it = portStatus->begin(); it != portStatus->end(); ++it)
@@ -140,8 +126,7 @@ void LinkState::update_lsp_table()
     router_id cur_router_id;
     cost_time min_cost;
 
-    // Dijkstra algorithm
-
+    // Dijkstra
     while (!unvisited_routers.empty())
     {
         // cout << "---Begin---" << endl;
@@ -182,10 +167,8 @@ void LinkState::update_lsp_table()
     // Update Node Info and Forwarding Table
     for (auto it = distances.begin(); it != distances.end(); ++it)
     {
-        
+
         router_id cur_id = it->first;
-        // cout << routerID << endl;
-        // cout << distances[2].second << endl;
         pair<cost_time, router_id> d = it->second;
         if (d.first == INFINITY_COST)
             continue;
@@ -196,14 +179,13 @@ void LinkState::update_lsp_table()
         node_info[cur_id] = cur_router_info;
         (*forwardingTable)[cur_id] = find_next_router(distances, cur_id);
     }
-    //cout << "End LSP" << endl;
 }
 
 router_id LinkState::find_next_router(unordered_map<router_id, pair<cost_time, router_id>> distances, router_id dest_router)
 {
     router_id cur_router_id = dest_router;
     while (distances[cur_router_id].second != routerID)
-        cur_router_id = distances[cur_router_id].second; 
+        cur_router_id = distances[cur_router_id].second;
     return cur_router_id;
 }
 
@@ -240,16 +222,16 @@ bool LinkState::cost_map_updated(router_id neighbor_id, unordered_map<router_id,
     }
     else
     {
-                                   // cost_map entry
+        // cost_map entry
         // cost_map: [router_id -> [neighbor_router_id -> cost]]
         unordered_map<router_id, cost_time> curr_cost_map_entry = this->cost_map[neighbor_id];
-        if (curr_cost_map_entry.size() != neighbor_id_to_cost.size()) 
+        if (curr_cost_map_entry.size() != neighbor_id_to_cost.size())
         {
             return true;
         }
         else
         {
-            for (auto it: neighbor_id_to_cost)
+            for (auto it : neighbor_id_to_cost)
             {
                 router_id neighbor_id = it.first;
                 cost_time neighbor_cost = it.second;

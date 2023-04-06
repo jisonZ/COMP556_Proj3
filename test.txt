@@ -1,0 +1,6 @@
+We added four additional tests to test our implementation of DV and LS protocol. 
+
+- test3: tests whether triggered updates are sent for both distance vector and link state in a 4-node topology. 
+- test4: tests whether changedelay events are correctly sent and handled for both distance vector and link state in a 3-node topology and whether poison reverse are triggered correctly for distance vector.
+- test5: tests whether a combination of changedelay, linkdying, linkcomingup events are sent and handled correctly for both distance vector and link state in a 3-node topology. 
+- test6: tests whether a combination of changedelay, linkdying, linkcomingup events are sent and handled correctly in a 11-node topology with 33 links and packet dropping probability. 

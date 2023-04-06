@@ -19,13 +19,23 @@ void DistanceVector::recvPacket(port_number port, void *packet, unsigned short s
 
     // extract source id and (neighbor, cost) information from packet
     changeDVPacketToPacketInfo(packet, DVList);
+
+    // if receive empty info, exit
+    if (DVList.size() == 0)
+        return;
+
     router_id source_router_id = DVList[0].first;
 
-    // insert neighbor and cost if not existed
+    // insert neighbor and cost if not exist
     insertNeighbors(source_router_id, port, DVList);
+
+    // if cannot find neighbor, exit
+    if (neighbors->find(source_router_id) == neighbors->end())
+        return;
 
     // update neighbor DV table entry and forwarding table entry
     cost_time source_cost = neighbors->find(source_router_id)->second.cost;
+
     insertDVEntry(source_router_id, source_cost, source_router_id);
 
     DVL new_packet_list{};
@@ -44,7 +54,7 @@ void DistanceVector::recvPacket(port_number port, void *packet, unsigned short s
             // TODO: is the second condition check necessary?
             if (recv_cost == INFINITY_COST || target_router_id == routerId)
                 continue;
-            insertDVEntry(target_router_id, recv_cost + source_cost, source_cost);
+            insertDVEntry(target_router_id, recv_cost + source_cost, source_router_id);
             new_packet_list.emplace_back(target_router_id, recv_cost + source_cost);
             continue;
         }
@@ -96,6 +106,7 @@ void DistanceVector::recvPacket(port_number port, void *packet, unsigned short s
     {
         sendPacket(new_packet_list);
     }
+    delete[] (char *)packet;
 }
 
 void DistanceVector::insertNeighbors(router_id neighborId, port_number port, DVL &DVList)
@@ -105,8 +116,9 @@ void DistanceVector::insertNeighbors(router_id neighborId, port_number port, DVL
         return;
 
     // search for self routerID and cost
-    for (auto &n : DVList)
+    for (auto it = DVList.begin() + 1; it != DVList.end(); it++)
     {
+        auto n = *it;
         if (n.first == routerId)
         {
             Neighbor newNeighbor(port, n.second);
@@ -135,7 +147,8 @@ void DistanceVector::insertDVEntry(router_id destId, cost_time cost, router_id n
 
 void DistanceVector::deleteDVEntry(router_id destId)
 {
-    DVTable->erase(destId);
+    if (DVTable->find(destId) != DVTable->end())
+        DVTable->erase(destId);
 }
 
 void DistanceVector::sendPacket(DVL &DVList)
@@ -164,21 +177,10 @@ void DistanceVector::sendPacket(DVL &DVList)
             auto target_router_id = dv.first, cost = dv.second;
             auto next_hop_id = (*DVTable)[target_router_id].next_hop_id;
 
-            if (neighbors->find(next_hop_id) != neighbors->end() 
-            && neighbors->find(next_hop_id)->second.port == port_id)
+            if (neighbors->find(next_hop_id) != neighbors->end() && neighbors->find(next_hop_id)->second.port == port_id)
             {
                 cost = INFINITY_COST;
             }
-            // TODO: check logic
-            // auto next_hop_id = (*DVTable)[target_router_id].next_hop_id;
-
-            // if ( DVTable->find(target_router_id) != DVTable->end()
-            //      && next_hop_id
-            //      && neighbors->find(next_hop_id) != neighbors->end()
-            //      && neighbors->find(next_hop_id)->second.port == port_id )
-            // {
-            //     cost = INFINITY_COST; // Poison Reverse
-            // }
 
             *(packet + 4 + index++) = htons(target_router_id);
             *(packet + 4 + index++) = htons(cost);
@@ -192,14 +194,14 @@ void DistanceVector::sendPacket()
     DVL DVList{};
     for (auto it = DVTable->begin(); it != DVTable->end(); ++it)
     {
-        // cout << it->first << " " << it->second.cost << endl;
         DVList.emplace_back(it->first, it->second.cost);
     }
 
     sendPacket(DVList);
 }
 
-void DistanceVector::checklink()
+// check whether neighbors are still connected, remove invalid entries and send updates
+void DistanceVector::checkLink()
 {
     auto pairs = DVL{};
     for (auto &port : *portStatus)
@@ -225,7 +227,7 @@ void DistanceVector::checklink()
 
 void DistanceVector::removeInvalidDVEntry(DVL &DVList, router_id disconnectedNeighbor)
 {
-    unordered_set<unsigned short> ids_to_remove;
+    unordered_set<unsigned short> invalid_entries;  // store router id's of invalid entries to be removed
     for (auto &it : *DVTable)
     {
         if (it.second.next_hop_id != disconnectedNeighbor && sys->time() - it.second.last_update_time <= 45 * 1000)
@@ -233,9 +235,9 @@ void DistanceVector::removeInvalidDVEntry(DVL &DVList, router_id disconnectedNei
             continue;
         }
         if (neighbors->find(it.first) == neighbors->end())
-        { // only remove those node that aren't neighbors
-            ids_to_remove.emplace(it.first);
-            // pairs->emplace_back(it.first, INFINITY_COST);
+        {   
+            // only remove those node that aren't neighbors
+            invalid_entries.emplace(it.first);
             continue;
         }
         if (neighbors->find(it.first)->second.cost != it.second.cost)
@@ -244,7 +246,7 @@ void DistanceVector::removeInvalidDVEntry(DVL &DVList, router_id disconnectedNei
             DVList.emplace_back(it.first, it.second.cost);
         }
     }
-    for (auto &id : ids_to_remove)
+    for (auto &id : invalid_entries)
     {
         deleteDVEntry(id);
     }

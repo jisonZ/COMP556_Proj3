@@ -40,12 +40,8 @@ public:
   // a neighbor router.
 
   void sendData(port_number port, void* packet);
-  // forward a DATA packet
-
   void sendPingPongPacket();
-
   void handlePingPongPacket(port_number port, void *packet);
-
   bool port_check();
 
 private:

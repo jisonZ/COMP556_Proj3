@@ -19,9 +19,6 @@ void RoutingProtocolImpl::sendPingPongPacket()
 
   for (unsigned int i = 0; i < num_ports; i++)
   {
-    // for (auto& en: portStatus)
-    //   cout << en.first << " : " << en.second.to_router_id  << " " << endl;
-
     char *PingPongPacket = (char *)malloc(sizeof(char) * size);
     *PingPongPacket = (unsigned char)PING;
     *(unsigned short *)(PingPongPacket + 2) = htons(size);                       // size
@@ -47,7 +44,7 @@ void RoutingProtocolImpl::handlePingPongPacket(port_number port, void *packet)
   }
   else if (type == PONG)
   {
-    //cout << "begin PONG" << endl;
+    // free(packet);
     time_stamp cur_time = sys->time();
     time_stamp timestamp = ntohl(*(unsigned int *)(data + 8));
     cost_time RTT = static_cast<cost_time>(cur_time - timestamp);
@@ -64,7 +61,8 @@ void RoutingProtocolImpl::handlePingPongPacket(port_number port, void *packet)
     int RTT_diff = 0;
     bool has_port_info = false;
     if (neighbors.count(neighbor_id) && is_connect)
-    { // already connected before, just update cost
+    { 
+      // already connected before, just update cost
       neighbors[neighbor_id].port = port;
       cost_time old_RTT = neighbors[neighbor_id].cost;
       neighbors[neighbor_id].cost = RTT;
@@ -76,10 +74,12 @@ void RoutingProtocolImpl::handlePingPongPacket(port_number port, void *packet)
           for (auto &entry : *(dv.DVTable))
           {
             if (entry.second.next_hop_id == neighbor_id)
-            { // is a next_hop of some destinations
+            { 
+              // is a next_hop of some destinations
               unsigned int new_RTT = entry.second.cost + RTT_diff;
               if (neighbors.count(entry.first) && neighbors[entry.first].cost < new_RTT)
-              { // now a direct neighbor is better
+              { 
+                // now a direct neighbor is better
                 entry.second.next_hop_id = entry.first;
                 entry.second.cost = neighbors[entry.first].cost;
                 forwardTable[entry.first] = entry.first;
@@ -91,7 +91,8 @@ void RoutingProtocolImpl::handlePingPongPacket(port_number port, void *packet)
               entry.second.last_update_time = sys->time();
             }
             else if (entry.first == neighbor_id && RTT < (*dv.DVTable)[neighbor_id].cost)
-            { // is a direct neighbor destination
+            { 
+              // is a direct neighbor destination
               entry.second.next_hop_id = neighbor_id;
               entry.second.cost = RTT;
               forwardTable[neighbor_id] = neighbor_id;
@@ -101,8 +102,10 @@ void RoutingProtocolImpl::handlePingPongPacket(port_number port, void *packet)
           dv.sendPacket();
         }
       }
-      else {
-        if (protocol_type == P_DV) {
+      else
+      {
+        if (protocol_type == P_DV)
+        {
           for (auto entry : *dv.DVTable)
           {
             if (entry.second.next_hop_id == neighbor_id || entry.first == neighbor_id)
@@ -120,9 +123,11 @@ void RoutingProtocolImpl::handlePingPongPacket(port_number port, void *packet)
       if (protocol_type == P_DV)
       {
         if (dv.DVTable->count(neighbor_id) && !is_connect)
-        { // re-connect a neighbor, may change best route for itself
+        { 
+          // re-connect a neighbor, may change best route for itself
           if (RTT < (*dv.DVTable)[neighbor_id].cost)
-          { // if direct route is better
+          { 
+            // if direct route is better
             dv.updateDVTable(neighbor_id, RTT, neighbor_id);
             dv.sendPacket();
           }
@@ -140,18 +145,15 @@ void RoutingProtocolImpl::handlePingPongPacket(port_number port, void *packet)
 
       if (protocol_type == P_LS && (RTT_diff == 0 || !has_port_info))
       {
-        //cout << "Being Ls" << endl;
         ls.update_lsp_table();
-        //cout << "after update" << endl;
+        // cout << "after update" << endl;
         ls.sendPacket();
-        //cout << "send pac" << endl;
       }
 
       // find a new neighbor or re-connect
       forwardTable[neighbor_id] = neighbor_id;
     }
   }
-  //cout << "end handle PING PONG" << endl;
 }
 
 void RoutingProtocolImpl::init(unsigned short num_ports, unsigned short router_id, eProtocolType protocol_type)
@@ -223,7 +225,7 @@ void RoutingProtocolImpl::handle_alarm(void *data)
     // check link expiration every 1 second
     if (protocol_type == P_DV)
     {
-      dv.checklink();
+      dv.checkLink();
     }
     else
     {
@@ -259,8 +261,6 @@ bool RoutingProtocolImpl::port_check()
 
 void RoutingProtocolImpl::recv(unsigned short port, void *packet, unsigned short size)
 {
-  // cout << "router " << routerID << " receiving..." << endl;
-  // cout << "port " << port << " Info " << portStatus[port].to_router_id << endl;
   ePacketType t = getPktType(packet);
 
   switch (t)
@@ -270,8 +270,7 @@ void RoutingProtocolImpl::recv(unsigned short port, void *packet, unsigned short
     sendData(port, packet);
     break;
 
-  case PING:
-  case PONG:
+  case PING: case PONG:
     // cout << "receiving PING/PONG..." << endl;
     handlePingPongPacket(port, packet);
     break;
@@ -287,13 +286,13 @@ void RoutingProtocolImpl::recv(unsigned short port, void *packet, unsigned short
       cerr << "unexpected protocol msg" << endl;
       exit(1);
     }
+    break;
 
   case LS:
     // cout << "receiving LS..." << endl;
-    // Implement LS
     ls.recv_LSP(port, packet, size);
     break;
-    //
+
   default:
     cerr << "unexpected msg type " << t << endl;
     exit(1);
@@ -312,16 +311,16 @@ void RoutingProtocolImpl::sendData(port_number port, void *packet)
   router_id target_router_id = ntohs(*(sp + 3));
   if (target_router_id == routerID)
   {
-    delete[] static_cast<char*>(packet);
+    delete[] static_cast<char *>(packet);
     return;
   }
 
   if (forwardTable.find(target_router_id) == forwardTable.end())
   {
-    //cout << "No Entry in Forward Table, Refuse to Send" << endl;
     return;
   }
   unsigned short size = *(reinterpret_cast<unsigned short *>(packet) + 1);
   router_id next_router = forwardTable[target_router_id];
+
   sys->send(neighbors[next_router].port, packet, size);
 }
