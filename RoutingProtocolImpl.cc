@@ -25,6 +25,9 @@ void RoutingProtocolImpl::sendPingPongPacket()
     *(unsigned short *)(PingPongPacket + 4) = htons(routerID);                   // source ID
     *(unsigned short *)(PingPongPacket + 6) = htons(portStatus[i].to_router_id); // destination ID
     *(unsigned int *)(PingPongPacket + 8) = htonl(sys->time());                  // timestamp
+
+
+    cout << "[sendPingPong] size: " << size << ", routerID: " << routerID << ", to_router_id: " << portStatus[i].to_router_id << endl;
     sys->send(i, PingPongPacket, PingPongPacketSize);
   }
 }
@@ -40,6 +43,7 @@ void RoutingProtocolImpl::handlePingPongPacket(port_number port, void *packet)
     *(unsigned short *)(data + 4) = htons(routerID);
     *(unsigned short *)(data + 6) = htons(target_id);
     *(unsigned int *)(data + 8) = htonl(sys->time());
+    cout << "[received ping] routerID: " << routerID << ", target_id: " << target_id << endl;
     sys->send(port, data, PingPongPacketSize);
   }
   else if (type == PONG)
@@ -56,6 +60,8 @@ void RoutingProtocolImpl::handlePingPongPacket(port_number port, void *packet)
     portStatus[port].last_update_time = cur_time;
     bool is_connect = portStatus[port].is_connected;
     portStatus[port].is_connected = true;
+
+    cout << "port: " << port << ", to_router_id: " << neighbor_id << ", cost: " << RTT << ", last_update_time: " << cur_time << endl;
 
     // update direct neighbors table
     int RTT_diff = 0;

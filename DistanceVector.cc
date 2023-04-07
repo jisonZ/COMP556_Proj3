@@ -30,8 +30,10 @@ void DistanceVector::recvPacket(port_number port, void *packet, unsigned short s
     insertNeighbors(source_router_id, port, DVList);
 
     // if cannot find neighbor, exit
-    if (neighbors->find(source_router_id) == neighbors->end())
+    if (neighbors->find(source_router_id) == neighbors->end()) {
+        cout << "cannot find neighbor, exit" << endl;
         return;
+    }
 
     // update neighbor DV table entry and forwarding table entry
     cost_time source_cost = neighbors->find(source_router_id)->second.cost;
@@ -101,6 +103,9 @@ void DistanceVector::recvPacket(port_number port, void *packet, unsigned short s
             }
         }
     }
+    
+    cout << "recvPacket()" << endl;
+    printDVTable();
 
     if (!new_packet_list.empty())
     {
@@ -118,6 +123,7 @@ void DistanceVector::insertNeighbors(router_id neighborId, port_number port, DVL
     // search for self routerID and cost
     for (auto it = DVList.begin() + 1; it != DVList.end(); it++)
     {
+        cout << "router id: " << it->first << ", cost: " << it->second << endl;
         auto n = *it;
         if (n.first == routerId)
         {
@@ -139,7 +145,7 @@ void DistanceVector::updateDVTable(router_id destId, cost_time cost, router_id n
 
 void DistanceVector::insertDVEntry(router_id destId, cost_time cost, router_id next_hop_id)
 {
-    DVEntry de{next_hop_id, cost, sys->time()};
+    DVEntry de(next_hop_id, cost, sys->time());
 
     (*DVTable)[destId] = de;
     (*forwardingTable)[destId] = next_hop_id;
@@ -155,6 +161,7 @@ void DistanceVector::sendPacket(DVL &DVList)
 {
     unsigned int size = DVList.size() * 4 + 8;
 
+
     for (port_number port_id = 0; port_id < numOfPorts; ++port_id)
     {
         // continue if port is detached
@@ -162,9 +169,12 @@ void DistanceVector::sendPacket(DVL &DVList)
         if (pit == portStatus->end() || !(pit->second.is_connected))
             continue;
 
+        
+
         char *msg = new char[size];
         *msg = (unsigned char)DV;
         auto packet = (unsigned short *)msg;
+        cout << "[sendPacket - from packet] size: " << size << ", routerId: " << routerId << ", to_router_id: " << pit->second.to_router_id << endl;
         *(packet + 1) = htons(size);
         *(packet + 2) = htons(routerId);
         *(packet + 3) = htons(pit->second.to_router_id);
@@ -177,6 +187,8 @@ void DistanceVector::sendPacket(DVL &DVList)
             auto target_router_id = dv.first, cost = dv.second;
             auto next_hop_id = (*DVTable)[target_router_id].next_hop_id;
 
+            cout << "[sendPacket - DVList] target_router_id: " << target_router_id << ", next_hop_id: " << next_hop_id << endl;
+
             if (neighbors->find(next_hop_id) != neighbors->end() && neighbors->find(next_hop_id)->second.port == port_id)
             {
                 cost = INFINITY_COST;
@@ -185,6 +197,8 @@ void DistanceVector::sendPacket(DVL &DVList)
             *(packet + 4 + index++) = htons(target_router_id);
             *(packet + 4 + index++) = htons(cost);
         }
+        cout << "sendPacket()" << endl;
+        printDVTable();
         sys->send(port_id, msg, size);
     }
 }
@@ -250,4 +264,17 @@ void DistanceVector::removeInvalidDVEntry(DVL &DVList, router_id disconnectedNei
     {
         deleteDVEntry(id);
     }
+}
+
+void DistanceVector::printDVTable()
+{
+    cout << "------------------DV Table------------------" << endl;
+    cout << " DVTable size: " << DVTable->size() << endl;
+    for (auto it = DVTable->begin(); it != DVTable->end(); ++it) {
+        cout << "router_id: " << it->first 
+             << ", cost: " << it->second.cost 
+             << ", next_hop_id: " << it->second.next_hop_id 
+             << ", timestamp: " << it->second.last_update_time << endl;
+    }
+    cout << "--------------End of DV Table---------------" << endl;
 }

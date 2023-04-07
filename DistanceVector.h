@@ -22,6 +22,8 @@ public:
     void sendPacket();
     void checkLink();
     void removeInvalidDVEntry(DVL &DVList, router_id disconnectedNeighbor);
+    
+    void printDVTable();
 
     friend class RoutingProtocolImpl;
     DVTable_pointer DVTable;

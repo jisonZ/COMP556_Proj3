@@ -18,6 +18,7 @@ void changeDVPacketToPacketInfo(void *start, DVL &pktInfo)
   {
     first = ntohs(*((unsigned short *)start + 2 + i * 2));
     second = ntohs(*((unsigned short *)start + 2 + i * 2 + 1));
+    cout <<"[changeDVPacketToPacketInfo] first: " << first << ", second: " << second << endl;
     pktInfo.push_back(static_cast<PacketInfo>(make_pair(first, second)));
   }
   return;
