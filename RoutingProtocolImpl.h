@@ -5,6 +5,7 @@
 #include "DistanceVector.h"
 #include "LinkState.h"
 #include <unordered_map>
+#define PING_PONG_PKT_SIZE 12
 
 class RoutingProtocolImpl : public RoutingProtocol
 {
@@ -40,8 +41,11 @@ public:
   // a neighbor router.
 
   void sendData(port_number port, void* packet);
-  void sendPingPongPacket();
-  void handlePingPongPacket(port_number port, void *packet);
+  // void sendPingPongPacket();
+  // void handlePingPongPacket(port_number port, void *packet);
+  void sendPingPacket();
+  void sendPongPacket(port_number port, void *packet);
+  void recvPongPacket(port_number port, void *packet);
   bool port_check();
 
 private:
