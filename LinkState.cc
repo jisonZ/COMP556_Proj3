@@ -15,21 +15,29 @@ void LinkState::recv_LSP(port_number port, void *packet, unsigned short size)
     unordered_map<router_id, cost_time> cost_map_entry;
     seq_num incomingSeq;
     router_id sourceID;
-
+    //cout << "Ciallo1" << endl; 
+    //cout << (char*)packet <<endl;
+    
     getLSinfo(packet, cost_map_entry, incomingSeq, sourceID);
-
+    // if (sourceID != routerID)
+    // {
+    //     free(packet);
+    //     return;
+    // }
+    //cout << "Ciallo2" << endl;
     if (seq_map.find(sourceID) == seq_map.end() || seq_map[sourceID] < incomingSeq)
     {
         seq_map[sourceID] = incomingSeq;
-
+        
         if (cost_map_updated(sourceID, cost_map_entry))
         {
             cost_map[sourceID] = cost_map_entry;
             update_lsp_table();
         }
-
+        
         flood_LSP(port, packet, size);
     }
+    
 }
 
 void LinkState::flood_LSP(port_number except_port_id, void *packet, unsigned short size)
@@ -179,6 +187,7 @@ void LinkState::update_lsp_table()
         node_info[cur_id] = cur_router_info;
         (*forwardingTable)[cur_id] = find_next_router(distances, cur_id);
     }
+    //cout << "LS" << endl;
 }
 
 router_id LinkState::find_next_router(unordered_map<router_id, pair<cost_time, router_id>> distances, router_id dest_router)

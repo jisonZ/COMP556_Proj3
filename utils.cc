@@ -37,7 +37,7 @@ void getLSinfo(void *packet, unordered_map<router_id, cost_time> &LSlist, seq_nu
   unsigned short size = ntohs(*(packet_start + 1));        // get size of DV packet
   routerID = ntohs(*(packet_start + 2));
   seqNum = ntohl(*((unsigned int *)(packet_start + 4)));
-
+  if (size <= 15) return;
   size -= 12; // delete first row (packet type, reserved, size)
   size /= 4;  // return number of rows of DV data
   unsigned short first, second;
@@ -46,8 +46,10 @@ void getLSinfo(void *packet, unordered_map<router_id, cost_time> &LSlist, seq_nu
   {
     first = ntohs(*((unsigned short *)packet + 6 + i * 2));
     second = ntohs(*((unsigned short *)packet + 6 + i * 2 + 1));
+   //cout << first << " " << second << endl;
     LSlist[first] = second;
   }
+  //cout << "LS2" << endl;
   return;
 };
 

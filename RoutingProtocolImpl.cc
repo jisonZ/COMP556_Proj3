@@ -44,7 +44,7 @@ void RoutingProtocolImpl::handlePingPongPacket(port_number port, void *packet)
   }
   else if (type == PONG)
   {
-    // free(packet);
+    free(packet);
     time_stamp cur_time = sys->time();
     time_stamp timestamp = ntohl(*(unsigned int *)(data + 8));
     cost_time RTT = static_cast<cost_time>(cur_time - timestamp);
@@ -106,7 +106,7 @@ void RoutingProtocolImpl::handlePingPongPacket(port_number port, void *packet)
       {
         if (protocol_type == P_DV)
         {
-          for (auto entry : *dv.DVTable)
+          for (auto &entry : *dv.DVTable)
           {
             if (entry.second.next_hop_id == neighbor_id || entry.first == neighbor_id)
             {
