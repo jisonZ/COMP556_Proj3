@@ -38,9 +38,9 @@ bool getLSinfo(void *packet, unordered_map<router_id, cost_time> &LSlist, seq_nu
   unsigned short *packet_start = (unsigned short *)packet; // get start of packet
   unsigned short size = ntohs(*(packet_start + 1));    
   //cout << "Packet Size: " << sizeof((char*)packet) << endl();    // get size of DV packet
-  size_t psize = strlen((char*)packet);
+  //size_t psize = strlen((char*)packet);
   //cout << "size:  " << psize << endl;
-  if (psize <= 15 && psize % 4 != 0) return false;
+  if (size <= 15 || size-12 % 4 != 0) return false;
 
   routerID = ntohs(*(packet_start + 2));
   seqNum = ntohl(*((unsigned int *)(packet_start + 4)));
