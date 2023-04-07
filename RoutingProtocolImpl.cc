@@ -135,8 +135,12 @@ void RoutingProtocolImpl::recvPongPacket(port_number port, char *packet) {
     portStatus[port].is_connected = true;
 
     handleDVRecv(port, neighborId, RTT, isConnected);
+  
   } else if (protocol_type == P_LS) {
+    cout << "before LS handler" << endl;
     handleLSRecv(port, neighborId, RTT);
+    cout << "after LS handler" << endl;
+  
   } else {
     cout << "unexpected protocol type, abort." << endl;
     exit(1);
@@ -220,14 +224,18 @@ void RoutingProtocolImpl::handleLSRecv(port_number port, router_id neighborId, c
 
   if (portStatusFound) {
     PortEntry oldPortStatus = portStatus[port];
+    cout << "[in handleLSRecv if] cost: " << oldPortStatus.cost << ", to_router_id: " << oldPortStatus.to_router_id << ", port: " << port << endl;
     portStatusUpdated = oldPortStatus.cost != RTT || oldPortStatus.to_router_id != neighborId;
   }
 
-  portStatus[port] = {neighborId, RTT, sys->time()};
+  portStatus[port] = {neighborId, RTT, sys->time(), false};
+  cout << "portStatusFound: " << portStatusFound << ", portStatusUpdated: " << portStatusUpdated << endl;
 
-  if (!portStatusFound || portStatusUpdated) {
+  if (portStatusFound || portStatusUpdated) {
     ls.update_lsp_table();
+    cout << "before LSP sent" << endl;
     ls.sendPacket();
+    cout << "after LSP sent" << endl;
   }
 }
 
