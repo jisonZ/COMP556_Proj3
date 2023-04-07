@@ -44,8 +44,9 @@ public:
   // void sendPingPongPacket();
   // void handlePingPongPacket(port_number port, void *packet);
   void sendPingPacket();
-  void sendPongPacket(port_number port, void *packet);
-  void recvPongPacket(port_number port, void *packet);
+  void sendPongPacket(port_number port, char *packet, unsigned short size);
+  void recvPongPacket(port_number port, char *packet);
+
   bool port_check();
 
 private:
@@ -57,10 +58,12 @@ private:
   unordered_map<port_number, PortEntry> portStatus;
   unordered_map<router_id, router_id> forwardTable;
   unordered_map<router_id, Neighbor> neighbors;
-  static int PingPongPacketSize;
 
   DistanceVector dv;
   LinkState ls;
+
+  void handleDVRecv(port_number port, router_id neighbor_id, cost_time RTT, bool isConnected);
+  void handleLSRecv(port_number port, router_id neighbor_id, cost_time RTT);
 };
 
 #endif

@@ -137,6 +137,10 @@ void DistanceVector::insertNeighbors(router_id neighborId, port_number port, DVL
 void DistanceVector::updateDVTable(router_id destId, cost_time cost, router_id next_hop_id)
 {
     auto de = DVTable->find(destId);
+    if (de == DVTable->end()) {
+        cout << "[updateDVTable] cannot find destId: " << destId << endl;
+        return;
+    }
     de->second.next_hop_id = next_hop_id;
     de->second.cost = cost;
     de->second.last_update_time = sys->time();

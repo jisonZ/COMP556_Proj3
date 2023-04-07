@@ -1,319 +1,238 @@
 #include "RoutingProtocolImpl.h"
 
-int RoutingProtocolImpl::PingPongPacketSize = 12;
-
-RoutingProtocolImpl::RoutingProtocolImpl(Node *n) : RoutingProtocol(n)
-{
+RoutingProtocolImpl::RoutingProtocolImpl(Node *n) : RoutingProtocol(n) {
   sys = n;
   // add your own code
 }
 
-RoutingProtocolImpl::~RoutingProtocolImpl()
-{
+RoutingProtocolImpl::~RoutingProtocolImpl() {
   // add your own code (if needed)
 }
 
-// void RoutingProtocolImpl::sendPingPongPacket()
+void RoutingProtocolImpl::sendPingPacket() {
+  for (port_number port_num = 0; port_num < num_ports; ++port_num) {
+    char *pingPacket = new char[PING_PONG_PKT_SIZE];
+
+    *pingPacket = (unsigned char)PING;
+    *(unsigned short *)(pingPacket + 2) = (unsigned short)htons(PING_PONG_PKT_SIZE);
+    *(unsigned short *)(pingPacket + 4) = (unsigned short)htons(routerID);  // send self router id
+    *(unsigned int *)(pingPacket + 8) = (unsigned int)htonl(sys->time());
+
+    // cout << "[sendPingPacket] routerID: " << routerID << "| timestamp: " << sys->time() << endl;
+
+    sys->send(port_num, pingPacket, PING_PONG_PKT_SIZE);
+  }
+}
+
+void RoutingProtocolImpl::sendPongPacket(port_number port, char *packet, unsigned short size) {
+  char *pongPacket = new char[PING_PONG_PKT_SIZE];
+
+  *pongPacket = (unsigned char)PONG;
+  *(unsigned short *)(pongPacket + 2) = (unsigned short)htons(size);
+  *(unsigned short *)(pongPacket + 4) = (unsigned short)htons(routerID);
+  *(unsigned short *)(pongPacket + 6) = *(unsigned short *)(packet + 4);
+  *(unsigned int *)(pongPacket + 8) = *(unsigned int *)(packet + 8);
+
+  // cout << "[sendPongPacket] size" << size
+  //      << " | routerID: " << routerID
+  //      << " | destID: " << ntohs(*(unsigned short *)(packet + 4))
+  //      << " | time: " << ntohs(*(unsigned int *)(packet + 8)) << endl;
+
+  sys->send(port, pongPacket, PING_PONG_PKT_SIZE);
+}
+
+// void RoutingProtocolImpl::recvPongPacket(port_number port, char *packet)
 // {
-//   int size = 8 + 4; // header + timestamp
-
-//   for (unsigned int i = 0; i < num_ports; i++)
-//   {
-//     char *PingPongPacket = (char *)malloc(sizeof(char) * size);
-//     *PingPongPacket = (unsigned char)PING;
-//     *(unsigned short *)(PingPongPacket + 2) = (unsigned short)htons(size);                       // size
-//     *(unsigned short *)(PingPongPacket + 4) = htons(routerID);                   // source ID
-//     *(unsigned short *)(PingPongPacket + 6) = htons(portStatus[i].to_router_id); // destination ID
-//     *(unsigned int *)(PingPongPacket + 8) = htonl(sys->time());                  // timestamp
-
-
-//     cout << "[sendPingPong] size: " << size << ", routerID: " << routerID << ", to_router_id: " << portStatus[i].to_router_id << endl;
-//     sys->send(i, PingPongPacket, PingPongPacketSize);
-//   }
-// }
-
-// void RoutingProtocolImpl::handlePingPongPacket(port_number port, void *packet)
-// {
-//   char *data = reinterpret_cast<char *>(packet);
-//   ePacketType type = getPktType(packet);
-//   if (type == PING)
-//   {
-//     *data = (unsigned char)PONG;
-//     unsigned short target_id = *(unsigned short *)(data + 4);
-//     *(unsigned short *)(data + 4) = htons(routerID);
-//     *(unsigned short *)(data + 6) = htons(target_id);
-//     *(unsigned int *)(data + 8) = htonl(sys->time());
-//     cout << "[receive ping] routerID: " << routerID << ", target_id: " << target_id << endl;
-//     sys->send(port, data, PingPongPacketSize);
-//   }
-//   else if (type == PONG)
+//   router_id destId = (unsigned short)ntohs(*(unsigned short *)(packet + 6));
+//   if (destId != routerID)
 //   {
 //     free(packet);
-//     time_stamp cur_time = sys->time();
-//     time_stamp timestamp = ntohl(*(unsigned int *)(data + 8));
-//     cost_time RTT = static_cast<cost_time>(cur_time - timestamp);
-//     router_id neighbor_id = ntohs(*(unsigned short *)(data + 4));
+//     return;
+//   }
 
-//     // update ports table
-//     portStatus[port].to_router_id = neighbor_id;
-//     portStatus[port].cost = RTT;
-//     portStatus[port].last_update_time = cur_time;
-//     bool is_connect = portStatus[port].is_connected;
-//     portStatus[port].is_connected = true;
+//   // free(packet);
+//   time_stamp cur_time = sys->time();
+//   time_stamp timestamp = (unsigned int)ntohl(*(unsigned int *)(packet + 8));
+//   cost_time RTT = static_cast<cost_time>(cur_time - timestamp);
+//   router_id neighbor_id = (unsigned short)ntohs(*(unsigned short *)(packet +
+//   4));
 
-//     cout << "[receive pong] port: " << port << ", to_router_id: " << neighbor_id << ", cost: " << RTT << ", last_update_time: " << cur_time << endl;
+//   // update ports table
+//   portStatus[port].to_router_id = neighbor_id;
+//   portStatus[port].cost = RTT;
+//   portStatus[port].last_update_time = cur_time;
+//   bool is_connect = portStatus[port].is_connected;
+//   portStatus[port].is_connected = true;
 
-//     // update direct neighbors table
-//     int RTT_diff = 0;
-//     bool has_port_info = false;
-//     if (neighbors.count(neighbor_id) && is_connect)
-//     { 
-//       // already connected before, just update cost
-//       neighbors[neighbor_id].port = port;
-//       cost_time old_RTT = neighbors[neighbor_id].cost;
-//       neighbors[neighbor_id].cost = RTT;
-//       RTT_diff = RTT - old_RTT;
-//       if (RTT_diff != 0)
-//       { // cost changes
-//         if (protocol_type == P_DV)
-//         {
-//           for (auto &entry : *(dv.DVTable))
-//           {
-//             if (entry.second.next_hop_id == neighbor_id)
-//             { 
-//               // is a next_hop of some destinations
-//               unsigned int new_RTT = entry.second.cost + RTT_diff;
-//               if (neighbors.count(entry.first) && neighbors[entry.first].cost < new_RTT)
-//               { 
-//                 // now a direct neighbor is better
-//                 entry.second.next_hop_id = entry.first;
-//                 entry.second.cost = neighbors[entry.first].cost;
-//                 forwardTable[entry.first] = entry.first;
-//               }
-//               else
-//               {                                // otherwise, use current route and just update cost
-//                 entry.second.cost += RTT_diff; // may not best route anymore if cost increases
-//               }
-//               entry.second.last_update_time = sys->time();
-//             }
-//             else if (entry.first == neighbor_id && RTT < (*dv.DVTable)[neighbor_id].cost)
-//             { 
-//               // is a direct neighbor destination
-//               entry.second.next_hop_id = neighbor_id;
-//               entry.second.cost = RTT;
-//               forwardTable[neighbor_id] = neighbor_id;
-//               entry.second.last_update_time = sys->time();
-//             }
-//           }
-//           dv.sendPacket();
-//         }
-//       }
-//       else
+//   // cout << "[receive pong] port: " << port << ", to_router_id: " <<
+//   neighbor_id << ", cost: " << RTT << ", last_update_time: " << cur_time <<
+//   endl;
+
+//   // update direct neighbors table
+//   int RTT_diff = 0;
+//   bool has_port_info = false;
+//   if (neighbors.count(neighbor_id) && is_connect)
+//   {
+//     // already connected before, just update cost
+//     neighbors[neighbor_id].port = port;
+//     cost_time old_RTT = neighbors[neighbor_id].cost;
+//     neighbors[neighbor_id].cost = RTT;
+//     RTT_diff = RTT - old_RTT;
+//     if (RTT_diff != 0)
+//     { // cost changes
+//       if (protocol_type == P_DV)
 //       {
-//         if (protocol_type == P_DV)
-//         {
-//           for (auto &entry : *dv.DVTable)
-//           {
-//             if (entry.second.next_hop_id == neighbor_id || entry.first == neighbor_id)
-//             {
-//               entry.second.last_update_time = sys->time();
-//             }
-//           }
-//         }
 //       }
 //     }
 //     else
 //     {
-//       has_port_info = true;
-//       neighbors[neighbor_id] = {port, static_cast<unsigned short>(RTT)};
 //       if (protocol_type == P_DV)
 //       {
-//         if (dv.DVTable->count(neighbor_id) && !is_connect)
-//         { 
-//           // re-connect a neighbor, may change best route for itself
-//           if (RTT < (*dv.DVTable)[neighbor_id].cost)
-//           { 
-//             // if direct route is better
-//             dv.updateDVTable(neighbor_id, RTT, neighbor_id);
-//             dv.sendPacket();
-//           }
-//           else
-//           {
-//             (*dv.DVTable)[neighbor_id].last_update_time = sys->time();
-//           }
-//         }
-//         else
-//         { // new neighbor that first time appears
-//           dv.insertDVEntry(neighbor_id, RTT, neighbor_id);
-//           dv.sendPacket();
-//         }
 //       }
-
-//       if (protocol_type == P_LS && (RTT_diff == 0 || !has_port_info))
-//       {
-//         ls.update_lsp_table();
-//         // cout << "after update" << endl;
-//         ls.sendPacket();
-//       }
-
-//       // find a new neighbor or re-connect
-//       forwardTable[neighbor_id] = neighbor_id;
 //     }
+//   }
+//   else
+//   {
+//     has_port_info = true;
+//     neighbors[neighbor_id] = {port, static_cast<unsigned short>(RTT)};
+//     if (protocol_type == P_DV)
+//     {
+
+//     }
+
+//     if (protocol_type == P_LS && (RTT_diff == 0 || !has_port_info))
+//     {
+//       ls.update_lsp_table();
+//       ls.sendPacket();
+//     }
+
+//     // find a new neighbor or re-connect
+//     forwardTable[neighbor_id] = neighbor_id;
 //   }
 // }
 
-void RoutingProtocolImpl::sendPingPacket()
-{
-  for (port_number port_num = 0; port_num < num_ports; ++port_num) {
-    char *ping_packet = new char[PING_PONG_PKT_SIZE];
-
-    *ping_packet = (unsigned char) PING;
-    *(unsigned short *)(ping_packet + 2) = (unsigned short)htons(PING_PONG_PKT_SIZE);
-    *(unsigned short *)(ping_packet + 4) = (unsigned short)htons(routerID);
-    *(unsigned int *)(ping_packet + 8) = (unsigned int)htonl(sys->time());
-
-    cout << "[sendPingPacket] size: " << size << ", routerID: " << routerID << ", to_router_id: " << portStatus[i].to_router_id << endl;
-
-    sys->send(port_num, ping_packet, PING_PONG_PKT_SIZE);
-  }
-}
-
-void RoutingProtocolImpl::sendPongPacket(port_number port, void *packet) {
-  char *pong_packet = new char
-}
-
-void RoutingProtocolImpl::recvPongPacket(port_number port, void *packet)
-{
-  char *data = reinterpret_cast<char *>(packet);
-  ePacketType type = getPktType(packet);
-  if (type == PING)
-  {
-    *data = (unsigned char)PONG;
-    unsigned short target_id = *(unsigned short *)(data + 4);
-    *(unsigned short *)(data + 4) = htons(routerID);
-    *(unsigned short *)(data + 6) = htons(target_id);
-    *(unsigned int *)(data + 8) = htonl(sys->time());
-    cout << "[receive ping] routerID: " << routerID << ", target_id: " << target_id << endl;
-    sys->send(port, data, PingPongPacketSize);
-  }
-  else if (type == PONG)
-  {
+void RoutingProtocolImpl::recvPongPacket(port_number port, char *packet) {
+  router_id destId = (unsigned short)ntohs(*(unsigned short *)(packet + 6));
+  if (destId != routerID) {
     free(packet);
-    time_stamp cur_time = sys->time();
-    time_stamp timestamp = ntohl(*(unsigned int *)(data + 8));
-    cost_time RTT = static_cast<cost_time>(cur_time - timestamp);
-    router_id neighbor_id = ntohs(*(unsigned short *)(data + 4));
+    return;
+  }
 
-    // update ports table
-    portStatus[port].to_router_id = neighbor_id;
+  // free(packet);
+  time_stamp currTime = sys->time();
+  time_stamp timestamp = (unsigned int)ntohl(*(unsigned int *)(packet + 8));
+  cost_time RTT = static_cast<cost_time>(currTime - timestamp);
+  router_id neighborId = (unsigned short)ntohs(*(unsigned short *)(packet + 4));
+
+  free(packet);
+
+  if (protocol_type == P_DV) {
+    // update portStatus table
+    portStatus[port].to_router_id = neighborId;
     portStatus[port].cost = RTT;
-    portStatus[port].last_update_time = cur_time;
-    bool is_connect = portStatus[port].is_connected;
+    portStatus[port].last_update_time = currTime;
+    bool isConnected = portStatus[port].is_connected;
     portStatus[port].is_connected = true;
 
-    cout << "[receive pong] port: " << port << ", to_router_id: " << neighbor_id << ", cost: " << RTT << ", last_update_time: " << cur_time << endl;
-
-    // update direct neighbors table
-    int RTT_diff = 0;
-    bool has_port_info = false;
-    if (neighbors.count(neighbor_id) && is_connect)
-    { 
-      // already connected before, just update cost
-      neighbors[neighbor_id].port = port;
-      cost_time old_RTT = neighbors[neighbor_id].cost;
-      neighbors[neighbor_id].cost = RTT;
-      RTT_diff = RTT - old_RTT;
-      if (RTT_diff != 0)
-      { // cost changes
-        if (protocol_type == P_DV)
-        {
-          for (auto &entry : *(dv.DVTable))
-          {
-            if (entry.second.next_hop_id == neighbor_id)
-            { 
-              // is a next_hop of some destinations
-              unsigned int new_RTT = entry.second.cost + RTT_diff;
-              if (neighbors.count(entry.first) && neighbors[entry.first].cost < new_RTT)
-              { 
-                // now a direct neighbor is better
-                entry.second.next_hop_id = entry.first;
-                entry.second.cost = neighbors[entry.first].cost;
-                forwardTable[entry.first] = entry.first;
-              }
-              else
-              {                                // otherwise, use current route and just update cost
-                entry.second.cost += RTT_diff; // may not best route anymore if cost increases
-              }
-              entry.second.last_update_time = sys->time();
-            }
-            else if (entry.first == neighbor_id && RTT < (*dv.DVTable)[neighbor_id].cost)
-            { 
-              // is a direct neighbor destination
-              entry.second.next_hop_id = neighbor_id;
-              entry.second.cost = RTT;
-              forwardTable[neighbor_id] = neighbor_id;
-              entry.second.last_update_time = sys->time();
-            }
-          }
-          dv.sendPacket();
-        }
-      }
-      else
-      {
-        if (protocol_type == P_DV)
-        {
-          for (auto &entry : *dv.DVTable)
-          {
-            if (entry.second.next_hop_id == neighbor_id || entry.first == neighbor_id)
-            {
-              entry.second.last_update_time = sys->time();
-            }
-          }
-        }
-      }
-    }
-    else
-    {
-      has_port_info = true;
-      neighbors[neighbor_id] = {port, static_cast<unsigned short>(RTT)};
-      if (protocol_type == P_DV)
-      {
-        if (dv.DVTable->count(neighbor_id) && !is_connect)
-        { 
-          // re-connect a neighbor, may change best route for itself
-          if (RTT < (*dv.DVTable)[neighbor_id].cost)
-          { 
-            // if direct route is better
-            dv.updateDVTable(neighbor_id, RTT, neighbor_id);
-            dv.sendPacket();
-          }
-          else
-          {
-            (*dv.DVTable)[neighbor_id].last_update_time = sys->time();
-          }
-        }
-        else
-        { // new neighbor that first time appears
-          dv.insertDVEntry(neighbor_id, RTT, neighbor_id);
-          dv.sendPacket();
-        }
-      }
-
-      if (protocol_type == P_LS && (RTT_diff == 0 || !has_port_info))
-      {
-        ls.update_lsp_table();
-        // cout << "after update" << endl;
-        ls.sendPacket();
-      }
-
-      // find a new neighbor or re-connect
-      forwardTable[neighbor_id] = neighbor_id;
-    }
+    handleDVRecv(port, neighborId, RTT, isConnected);
+  } else if (protocol_type == P_LS) {
+    handleLSRecv(port, neighborId, RTT);
+  } else {
+    cout << "unexpected protocol type, abort." << endl;
+    exit(1);
   }
 }
 
-void RoutingProtocolImpl::init(unsigned short num_ports, unsigned short router_id, eProtocolType protocol_type)
-{
+void RoutingProtocolImpl::handleDVRecv(port_number port, router_id neighborId, cost_time RTT,
+                                       bool isConnected) {
+  // check if this neighbor is already connected before
+  if (neighbors.find(neighborId) != neighbors.end() && isConnected) {
+    // update connected neighbor's cost and port number
+    neighbors[neighborId].port = port;
+    cost_time oldRTT = neighbors[neighborId].cost;
+    neighbors[neighborId].cost = RTT;
+    cost_time rttDiff = RTT - oldRTT;
+
+    // cost has changed
+    if (rttDiff != 0) {
+      for (auto it = dv.DVTable->begin(); it != dv.DVTable->end(); ++it) {
+        it->second.last_update_time = sys->time();
+
+        // router_id of current entry in DVTable
+        router_id currRouterId = it->first;
+
+        // current router use neighborId as next hop
+        if (it->second.next_hop_id == neighborId) {
+          cost_time newRTT = it->second.cost + rttDiff;
+          // TODO: is this check necessary?
+          // going to next_hop router is more expensive now -> go directly from
+          // currRouterId instead
+          if (neighbors.find(currRouterId) != neighbors.end() &&
+              neighbors[currRouterId].cost < newRTT) {
+            it->second.next_hop_id = currRouterId;
+            it->second.cost = neighbors[currRouterId].cost;
+            forwardTable[currRouterId] = currRouterId;
+          } else {  // update cost
+            it->second.cost = newRTT;
+          }
+        }
+        // current router is a direct neighbor, and now it has a new min cost
+        else if (currRouterId == neighborId && (*dv.DVTable)[neighborId].cost > RTT) {
+          it->second.next_hop_id = neighborId;
+          it->second.cost = RTT;
+          forwardTable[neighborId] = neighborId;
+        }
+      }
+      dv.sendPacket();
+    }
+    // cost has not changed, just update the timestamp for each entry
+    else {
+      for (auto it = dv.DVTable->begin(); it != dv.DVTable->end(); ++it) {
+        if (it->second.next_hop_id == neighborId || it->first == neighborId) {
+          it->second.last_update_time = sys->time();
+        }
+      }
+    }
+  }
+  // neighbor is either new or re-connecting
+  else {
+    // re-connecting: DVTable has an entry for neighborId but port is not connected
+    if (dv.DVTable->find(neighborId) != dv.DVTable->end() && !isConnected) {
+      // TODO: do we need if-else here?
+      if ((*dv.DVTable)[neighborId].cost > RTT) {
+        dv.updateDVTable(neighborId, RTT, neighborId);
+        dv.sendPacket();
+      } else {
+        (*dv.DVTable)[neighborId].last_update_time = sys->time();
+      }
+      // new neighbor
+    } else {
+      dv.insertDVEntry(neighborId, RTT, neighborId);
+      dv.sendPacket();
+    }
+    forwardTable[neighborId] = neighborId;
+  }
+}
+
+void RoutingProtocolImpl::handleLSRecv(port_number port, router_id neighborId, cost_time RTT) {
+  bool portStatusUpdated = false;
+  bool portStatusFound = portStatus.find(port) != portStatus.end();
+
+  if (portStatusFound) {
+    PortEntry oldPortStatus = portStatus[port];
+    portStatusUpdated = oldPortStatus.cost != RTT || oldPortStatus.to_router_id != neighborId;
+  }
+
+  portStatus[port] = {neighborId, RTT, sys->time()};
+
+  if (!portStatusFound || portStatusUpdated) {
+    ls.update_lsp_table();
+    ls.sendPacket();
+  }
+}
+
+void RoutingProtocolImpl::init(unsigned short num_ports, unsigned short router_id,
+                               eProtocolType protocol_type) {
   // add your own code
   this->num_ports = num_ports;
   this->routerID = router_id;
@@ -329,17 +248,14 @@ void RoutingProtocolImpl::init(unsigned short num_ports, unsigned short router_i
   *((eAlarmType *)ls_alarm) = SendLS;
   *((eAlarmType *)expire_alarm) = SendCheck;
 
-  sendPingPongPacket();
+  sendPingPacket();
 
   sys->set_alarm(this, 1000, expire_alarm);
   sys->set_alarm(this, 10 * 1000, ping_pong_alarm);
 
-  if (protocol_type == P_DV)
-  {
+  if (protocol_type == P_DV) {
     sys->set_alarm(this, 30 * 1000, dv_alarm);
-  }
-  else
-  {
+  } else {
     sys->set_alarm(this, 30 * 1000, ls_alarm);
   }
 
@@ -347,66 +263,57 @@ void RoutingProtocolImpl::init(unsigned short num_ports, unsigned short router_i
   ls.init(sys, router_id, num_ports, &neighbors, &portStatus, &forwardTable);
 }
 
-void RoutingProtocolImpl::handle_alarm(void *data)
-{
+void RoutingProtocolImpl::handle_alarm(void *data) {
   // add your own code
   eAlarmType type = (*((eAlarmType *)data));
-  switch (type)
-  {
-  case SendPINGPONG:
-    // generate ping pong message every 10 seconds
-    sendPingPongPacket();
-    sys->set_alarm(this, 10 * 1000, data);
-    break;
+  switch (type) {
+    case SendPINGPONG:
+      // generate ping pong message every 10 seconds
+      sendPingPacket();
+      sys->set_alarm(this, 10 * 1000, data);
+      break;
 
-  case SendDV:
-    // send DV update every 30 seconds
-    if (protocol_type == P_DV)
-    {
-      dv.sendPacket();
-    }
-    sys->set_alarm(this, 30 * 1000, data);
-    break;
+    case SendDV:
+      // send DV update every 30 seconds
+      if (protocol_type == P_DV) {
+        dv.sendPacket();
+      }
+      sys->set_alarm(this, 30 * 1000, data);
+      break;
 
-  case SendLS:
-    // send LS update every 30 seconds
-    if (protocol_type == P_LS)
-    {
-      ls.sendPacket();
-    }
-    sys->set_alarm(this, 30 * 1000, data);
-    break;
-
-  case SendCheck:
-    // check link expiration every 1 second
-    if (protocol_type == P_DV)
-    {
-      dv.checkLink();
-    }
-    else
-    {
-      if (port_check())
+    case SendLS:
+      // send LS update every 30 seconds
+      if (protocol_type == P_LS) {
         ls.sendPacket();
+      }
+      sys->set_alarm(this, 30 * 1000, data);
+      break;
 
-      if (ls.remove_expired())
-        ls.update_lsp_table();
-    }
-    sys->set_alarm(this, 1000, data);
-    break;
+    case SendCheck:
+      // check link expiration every 1 second
+      if (protocol_type == P_DV) {
+        dv.checkLink();
+      } else {
+        if (port_check()) {
+          ls.sendPacket();
+        }
+        if (ls.remove_expired()) {
+          ls.update_lsp_table();
+        }
+      }
+      sys->set_alarm(this, 1000, data);
+      break;
 
-  default:
-    cerr << "unexpected alarm type" << endl;
-    exit(1);
+    default:
+      cerr << "unexpected alarm type" << endl;
+      exit(1);
   }
 }
 
-bool RoutingProtocolImpl::port_check()
-{
+bool RoutingProtocolImpl::port_check() {
   bool is_expired = false;
-  for (auto it = portStatus.begin(); it != portStatus.end(); ++it)
-  {
-    if (sys->time() - (it->second.last_update_time) > 15000)
-    {
+  for (auto it = portStatus.begin(); it != portStatus.end(); ++it) {
+    if (sys->time() - (it->second.last_update_time) > 15000) {
       it->second.cost = INFINITY_COST;
       it->second.is_connected = false;
       is_expired = true;
@@ -415,68 +322,64 @@ bool RoutingProtocolImpl::port_check()
   return is_expired;
 }
 
-void RoutingProtocolImpl::recv(unsigned short port, void *packet, unsigned short size)
-{
+void RoutingProtocolImpl::recv(unsigned short port, void *packet, unsigned short size) {
   ePacketType t = getPktType(packet);
 
-  switch (t)
-  {
-  case DATA:
-    // cout << "receiving DATA..." << endl;
-    sendData(port, packet);
-    break;
+  switch (t) {
+    case DATA:
+      sendData(port, packet);
+      break;
 
-  case PING: case PONG:
-    // cout << "receiving PING/PONG..." << endl;
-    handlePingPongPacket(port, packet);
-    break;
+    case PING:
+      sendPongPacket(port, (char *)packet, size);
+      break;
 
-  case DV:
-    // cout << "receiving DV..." << endl;
-    if (protocol_type == P_DV)
-    {
-      dv.recvPacket(port, packet, size);
-    }
-    else
-    {
-      cerr << "unexpected protocol msg" << endl;
+    case PONG:
+      recvPongPacket(port, (char *)packet);
+      break;
+
+    case DV:
+      if (protocol_type == P_DV) {
+        dv.recvPacket(port, packet, size);
+      } else {
+        cerr << "unexpected protocol msg" << endl;
+        exit(1);
+      }
+      break;
+
+    case LS:
+      ls.recv_LSP(port, packet, size);
+      break;
+
+    default:
+      cerr << "unexpected msg type " << t << endl;
       exit(1);
-    }
-    break;
-
-  case LS:
-    // cout << "receiving LS..." << endl;
-    ls.recv_LSP(port, packet, size);
-    break;
-
-  default:
-    cerr << "unexpected msg type " << t << endl;
-    exit(1);
   }
 }
 
-void RoutingProtocolImpl::sendData(port_number port, void *packet)
-{
+void RoutingProtocolImpl::sendData(port_number port, void *packet) {
   ePacketType t = getPktType(packet);
-  if (t != DATA)
-  {
+  if (t != DATA) {
     cerr << "packet should be" << t << endl;
     exit(1);
   }
-  auto sp = reinterpret_cast<unsigned short *>(packet);
-  router_id target_router_id = ntohs(*(sp + 3));
-  if (target_router_id == routerID)
-  {
-    delete[] static_cast<char *>(packet);
+  // auto sp = reinterpret_cast<unsigned short *>(packet);
+  // router_id target_router_id = ntohs(*(sp + 3));
+
+  router_id target_router_id = (unsigned short)ntohs(*(unsigned short *)((char *)packet + 6));
+  
+  if (target_router_id == routerID) {
+    // delete[] static_cast<char *>(packet);
+    free(packet);
     return;
   }
 
-  if (forwardTable.find(target_router_id) == forwardTable.end())
-  {
+  if (forwardTable.find(target_router_id) == forwardTable.end()) {
     return;
   }
-  unsigned short size = *(reinterpret_cast<unsigned short *>(packet) + 1);
+  // unsigned short size = *(reinterpret_cast<unsigned short *>(packet) + 1);
+
+  unsigned short size = (unsigned short)ntohs(*(unsigned short *)((char *)packet + 2));
   router_id next_router = forwardTable[target_router_id];
-
   sys->send(neighbors[next_router].port, packet, size);
 }
