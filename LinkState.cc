@@ -18,7 +18,8 @@ void LinkState::recv_LSP(port_number port, void *packet, unsigned short size)
     //cout << "Ciallo1" << endl; 
     //cout << (char*)packet <<endl;
     
-    getLSinfo(packet, cost_map_entry, incomingSeq, sourceID);
+    bool canweupdate = getLSinfo(packet, cost_map_entry, incomingSeq, sourceID);
+    if (!canweupdate) return;
     // if (sourceID != routerID)
     // {
     //     free(packet);
@@ -83,7 +84,9 @@ void LinkState::sendPacket()
             *(packet + 6 + index++) = htons(cost);
         }
         sys->send(port_id, msg, size);
+        
     }
+    ++SeqNum;
 }
 
 void LinkState::update_lsp_table()

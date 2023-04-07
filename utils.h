@@ -67,7 +67,7 @@ using portStatus_pointer = unordered_map<port_number, PortEntry> *;
 using forwarding_pointer = unordered_map<router_id, router_id> *;
 
 void changeDVPacketToPacketInfo(void *start, vector<PacketInfo> &pktInfo);
-void getLSinfo(void *packet, unordered_map<router_id, cost_time> &LSlist, seq_num &seqNum, router_id& routerID);
+bool getLSinfo(void *packet, unordered_map<router_id, cost_time> &LSlist, seq_num &seqNum, router_id& routerID);
 ePacketType getPktType(void *packet);
 void testPktType(ePacketType t);
 #endif
