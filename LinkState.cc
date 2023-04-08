@@ -1,12 +1,12 @@
 #include "LinkState.h"
 #include <cstring>
-void LinkState::init(Node *sys, router_id id, port_number num_port, neighbors_pointer neighbors, portStatus_pointer por, forwarding_pointer fwtp)
+void LinkState::init(Node *sys, router_id id, port_number num_port, neighbors_pointer neighbors, portStatus_pointer ports, forwarding_pointer fwtp)
 {
     this->sys = sys;
     this->routerID = id;
     this->numOfPorts = num_port;
     this->neighbors = neighbors;
-    this->portStatus = por;
+    this->portStatus = ports;
     this->forwardingTable = fwtp;
 }
 

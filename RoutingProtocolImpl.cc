@@ -375,14 +375,14 @@ void RoutingProtocolImpl::sendData(port_number port, void *packet) {
   
   unsigned short size = (unsigned short)ntohs(*(unsigned short *)((char *)packet + 2));
 
-  // no entry in forwardTable
+  // no entry in forwardTable -> drop packet
   if (forwardTable.find(target_router_id) == forwardTable.end()) {
     return;
   }
 
   router_id next_hop_router_id = forwardTable[target_router_id];
 
-  // next hop not in neighbors table
+  // next hop not in neighbors table -> drop packet
   if (neighbors.find(next_hop_router_id) == neighbors.end()) {
     return;
   }

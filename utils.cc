@@ -8,10 +8,10 @@ void changeDVPacketToPacketInfo(void *start, DVL &pktInfo)
    * size : How many bytes of the DV packet
    */
 
-  unsigned short *packet_start = (unsigned short *)start; //
+  unsigned short *packet_start = (unsigned short *)start;
   unsigned short size = ntohs(*(packet_start + 1));       // get size of DV packet
   size -= 4;                                              // delete first row (packet type, reserved, size)
-  size /= 4;                                              // return number of rows of DV data
+  size /= 4;                                              // return number of rows of DV payload
   unsigned short first, second;
   size_t i;
   for (i = 0; i < size; ++i)
@@ -55,32 +55,30 @@ bool getLSinfo(void *packet, unordered_map<router_id, cost_time> &LSlist, seq_nu
   {
     first = ntohs(*((unsigned short *)packet + 6 + i * 2));
     second = ntohs(*((unsigned short *)packet + 6 + i * 2 + 1));
-   //cout << first << " " << second << endl;
     LSlist[first] = second;
   }
-  //cout << "LS2" << endl;
   return true;
 };
 
-void testPktType(ePacketType t)
-{
-  cout << "TEST PKT TYPE" << endl;
-  switch (t)
-  {
-  case DATA:
-    cout << "received DATA" << endl;
-    break;
-  case PING:
-  case PONG:
-    cout << "received PING/PONG" << endl;
-    break;
-  case DV:
-    cout << "received DV" << endl;
-    break;
-  case LS:
-    cout << "received LS" << endl;
-    break;
-  default:
-    cout << "unexpected MSG type" << endl;
-  }
-};
+// void testPktType(ePacketType t)
+// {
+//   cout << "TEST PKT TYPE" << endl;
+//   switch (t)
+//   {
+//   case DATA:
+//     cout << "received DATA" << endl;
+//     break;
+//   case PING:
+//   case PONG:
+//     cout << "received PING/PONG" << endl;
+//     break;
+//   case DV:
+//     cout << "received DV" << endl;
+//     break;
+//   case LS:
+//     cout << "received LS" << endl;
+//     break;
+//   default:
+//     cout << "unexpected MSG type" << endl;
+//   }
+// };
