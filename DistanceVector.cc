@@ -6,7 +6,7 @@ void DistanceVector::init(Node *sys, router_id routerId, unsigned short numPorts
     // initialize tables and neighbor information
     this->sys = sys;
     this->routerId = routerId;
-    this->numOfPorts = numPorts;
+    this->numPorts = numPorts;
     this->neighbors = neighbors;
     this->portStatus = portStatus;
     this->forwardingTable = forwarding;
@@ -166,7 +166,7 @@ void DistanceVector::sendPacket(DVL &DVList)
     unsigned int size = DVList.size() * 4 + 8;
 
 
-    for (port_number port_id = 0; port_id < numOfPorts; ++port_id)
+    for (port_number port_id = 0; port_id < numPorts; ++port_id)
     {
         // continue if port is detached
         auto pit = portStatus->find(port_id);
@@ -276,9 +276,9 @@ void DistanceVector::printDVTable()
     cout << " DVTable size: " << DVTable->size() << endl;
     for (auto it = DVTable->begin(); it != DVTable->end(); ++it) {
         cout << "router_id: " << it->first 
-             << ", cost: " << it->second.cost 
-             << ", next_hop_id: " << it->second.next_hop_id 
-             << ", timestamp: " << it->second.last_update_time << endl;
+             << " | cost: " << it->second.cost 
+             << " | next_hop_id: " << it->second.next_hop_id 
+             << " | timestamp: " << it->second.last_update_time << endl;
     }
     cout << "--------------End of DV Table---------------" << endl;
 }

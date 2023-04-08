@@ -5,6 +5,7 @@
 #include "DistanceVector.h"
 #include "LinkState.h"
 #include <unordered_map>
+
 #define PING_PONG_PKT_SIZE 12
 
 class RoutingProtocolImpl : public RoutingProtocol
@@ -41,13 +42,11 @@ public:
   // a neighbor router.
 
   void sendData(port_number port, void* packet);
-  // void sendPingPongPacket();
-  // void handlePingPongPacket(port_number port, void *packet);
   void sendPingPacket();
   void sendPongPacket(port_number port, char *packet, unsigned short size);
   void recvPongPacket(port_number port, char *packet);
 
-  bool port_check();
+  bool checkLSPortStatus();
 
 private:
   Node *sys; // To store Node object; used to access GSR9999 interfaces
@@ -56,14 +55,20 @@ private:
   unsigned short routerID;
   unsigned short num_ports;
   unordered_map<port_number, PortEntry> portStatus;
-  unordered_map<router_id, router_id> forwardTable;
+  unordered_map<router_id, router_id> forwardingTable;
+  
+  // dv
   unordered_map<router_id, Neighbor> neighbors;
-
   DistanceVector dv;
+
+  // ls
   LinkState ls;
 
   void handleDVRecv(port_number port, router_id neighbor_id, cost_time RTT, bool isConnected);
   void handleLSRecv(port_number port, router_id neighbor_id, cost_time RTT);
+
+  void DVSendData(router_id destRouterId, pkt_size size, port_number port, void *packet);
+  void LSSendData(router_id destRouterId, pkt_size size, port_number port, void *packet);
 };
 
 #endif

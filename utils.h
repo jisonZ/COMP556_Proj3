@@ -20,6 +20,7 @@ using router_id = unsigned short;
 using cost_time = unsigned short;
 using time_stamp = unsigned int;
 using seq_num = unsigned int;
+using pkt_size = unsigned short;
 
 using PacketInfo = pair<unsigned short, unsigned short>;
 
@@ -59,6 +60,14 @@ struct DVEntry
   DVEntry(router_id next_hop_id, cost_time cost, time_stamp last_update_time) : next_hop_id(next_hop_id), cost(cost), last_update_time(last_update_time) {}
 };
 
+struct LSEntry
+{
+    unsigned int cost;
+    router_id prev_router_id;
+    time_stamp last_update_time;
+};
+
+
 // neighbor_ID -> [neighbor_port, neighbor_cost]
 using neighbors_pointer = unordered_map<router_id, Neighbor> *;
 // port_number -> [to_router_id, cost, last_update_time, is_connect]
@@ -69,5 +78,5 @@ using forwarding_pointer = unordered_map<router_id, router_id> *;
 void changeDVPacketToPacketInfo(void *start, vector<PacketInfo> &pktInfo);
 bool getLSinfo(void *packet, unordered_map<router_id, cost_time> &LSlist, seq_num &seqNum, router_id& routerID);
 ePacketType getPktType(void *packet);
-void testPktType(ePacketType t);
+
 #endif
