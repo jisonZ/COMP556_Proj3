@@ -1,8 +1,6 @@
 #ifndef LINKSTATE_H
 #define LINKSTATE_H
 
-#include <queue>
-
 #include "Node.h"
 #include "utils.h"
 
@@ -58,8 +56,7 @@ class LinkState {
   // LS flooding
   void floodLSP(port_number fromPort, void *packet, pkt_size size);
   // get router_id of the next hop router for a given dest_router
-  router_id getNextHop(unordered_map<router_id, pair<cost_time, router_id>> distances,
-                       router_id dest_router);
+  router_id getNextHop(unordered_map<router_id, pair<cost_time, router_id>> distances, router_id dest_router);
   // check if [neighbor id, cost] info in received LSP is different from what's in cost_map
   bool hasCostMapEntryChanged(router_id neighbor_id, cost_map_entry costMapEntry);
   void printLSForwardingTable();

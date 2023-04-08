@@ -178,7 +178,7 @@ void LinkState::updateLSTable() {
     LSTable[cur_id] = lsEntry;
     (*forwardingTable)[cur_id] = getNextHop(distances, cur_id);
   }
-  printLSForwardingTable();
+  // printLSForwardingTable();
 }
 
 // check and remove LS entries in LSTable which are older than 45 seconds

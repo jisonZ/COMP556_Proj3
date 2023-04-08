@@ -188,7 +188,7 @@ void DistanceVector::recvPacket(port_number port, void *packet, unsigned short s
     }
   }
 
-  printDVTable();
+  // printDVTable();
 
   if (!new_packet_list.empty()) {
     sendPacket(new_packet_list);
