@@ -359,6 +359,7 @@ void RoutingProtocolImpl::recv(unsigned short port, void *packet, unsigned short
 
 void RoutingProtocolImpl::sendData(port_number port, void *packet) {
   ePacketType t = getPktType(packet);
+  cout << "Reciving Data" << endl;
   if (t != DATA) {
     cerr << "packet should be" << t << endl;
     exit(1);
@@ -373,13 +374,26 @@ void RoutingProtocolImpl::sendData(port_number port, void *packet) {
     free(packet);
     return;
   }
-
+  //cout << "OP" <<endl;
   if (forwardTable.find(target_router_id) == forwardTable.end()) {
     return;
   }
   // unsigned short size = *(reinterpret_cast<unsigned short *>(packet) + 1);
 
   unsigned short size = (unsigned short)ntohs(*(unsigned short *)((char *)packet + 2));
+  
   router_id next_router = forwardTable[target_router_id];
-  sys->send(neighbors[next_router].port, packet, size);
+  cout << next_router << endl;
+  // for (auto &i : portStatus)
+  // {
+  //   cout << i.second.to_router_id << endl;
+  // }
+  port_number port_d = 0;
+  for (port_d = 0; port_d < num_ports; port_d ++)
+  {
+    if (portStatus[port_d].to_router_id == next_router)
+      break;
+  }
+  sys->send(port_d, packet, size);
+  cout << "End of Reciving Data" << endl;
 }
