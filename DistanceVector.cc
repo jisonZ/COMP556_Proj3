@@ -273,12 +273,12 @@ void DistanceVector::removeInvalidDVEntry(DVL &DVList, router_id disconnectedNei
 void DistanceVector::printDVTable()
 {
     cout << "------------------DV Table------------------" << endl;
-    cout << " DVTable size: " << DVTable->size() << endl;
+    cout << "DVTable size: " << DVTable->size() << endl;
     for (auto it = DVTable->begin(); it != DVTable->end(); ++it) {
         cout << "router_id: " << it->first 
              << " | cost: " << it->second.cost 
              << " | next_hop_id: " << it->second.next_hop_id 
              << " | timestamp: " << it->second.last_update_time << endl;
     }
-    cout << "--------------End of DV Table---------------" << endl;
+    cout << "--------------------End---------------------" << endl;
 }

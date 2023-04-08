@@ -11,7 +11,26 @@ void LinkState::init(Node *sys, router_id id, port_number numPorts, portStatus_p
   this->forwardingTable = fwtp;
 }
 
-void LinkState::recvLSP(port_number port, void *packet, pkt_size size) {
+void LinkState::sendData(router_id destRouterId, pkt_size size, port_number port, void *packet) {
+  if (destRouterId == routerID) {
+    free(packet);
+    return;
+  }
+
+  router_id nextHopRouterId = (*forwardingTable)[destRouterId];
+  for (auto it = portStatus->begin(); it != portStatus->end(); ++it) {
+    port_number portNum = it->first;
+    if (nextHopRouterId == it->second.to_router_id) {
+      char *p = (char *)malloc(size);
+      memcpy(p, packet, size);
+      sys->send(portNum, (void *)p, size);
+      free(packet);
+      break;
+    }
+  }
+}
+
+void LinkState::recvLSP(port_number port, void *packet) {
   pkt_size size;
   router_id sourceRouterId;
   seq_num receivedSeqNum;
@@ -72,14 +91,8 @@ void LinkState::sendLSP() {
 }
 
 void LinkState::updateLSTable() {
-  // <node, <cost, predecessor>>
   unordered_map<router_id, pair<cost_time, router_id>> distances;
   unordered_set<router_id> unvisited_routers;
-  // for (auto it = cost_map[1].begin(); it != cost_map[1].end(); ++it)
-  // {
-  //     cout << it->first<< " " << it->second << endl;
-  // }
-  // cout << "End Cost Map" << endl;
 
   // Add adjacent routers to root router to D
   for (auto it = portStatus->begin(); it != portStatus->end(); ++it) {
@@ -97,19 +110,6 @@ void LinkState::updateLSTable() {
       distances[neighborId] = make_pair(INFINITY_COST, routerID);
   }
 
-  // for (auto it = distances.begin(); it != distances.end(); ++it)
-  // {
-  //     cout << it->first << " < " << it->second.first << ", " << it->second.second << " > " <<
-  //     endl;
-  // }
-
-  // cout << "----End distances -----" << endl;
-  // for (auto it = unvisited_routers.begin(); it != unvisited_routers.end(); ++it)
-  // {
-  //     cout << *it << endl;
-  // }
-
-  // cout << "------End Unv------" << endl;
   router_id cur_router_id;
   cost_time min_cost;
 
@@ -158,7 +158,7 @@ void LinkState::updateLSTable() {
     LSTable[cur_id] = lsEntry;
     (*forwardingTable)[cur_id] = getNextHop(distances, cur_id);
   }
-  // cout << "LS" << endl;
+  printLSForwardingTable();
 }
 
 router_id LinkState::getNextHop(unordered_map<router_id, pair<cost_time, router_id>> distances,
@@ -215,4 +215,13 @@ bool LinkState::hasCostMapChanged(router_id neighbor_id,
     }
     return false;
   }
+}
+
+void LinkState::printLSForwardingTable() {
+  cout << "------------------LS Forwarding Table------------------" << endl;
+  cout << "LS forwarding table size: " << forwardingTable->size() << endl;
+  for (auto it = forwardingTable->begin(); it != forwardingTable->end(); ++it) {
+    cout << "dest router id: " << it->first << " | next hop router id: " << it->second << endl;
+  }
+  cout << "-------------------------End-------------------------" << endl;
 }

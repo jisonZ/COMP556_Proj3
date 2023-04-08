@@ -32,8 +32,7 @@ void getLSPacketPayload(void *packet, pkt_size &size, router_id &srcRouterId, se
   srcRouterId = (unsigned short)ntohs(*(unsigned short *)((char *)packet + 4));
   sequenceNum = (unsigned int)ntohl(*(unsigned int *)((char *)packet + 8));
 
-  size_t i = 12;
-  for (size_t i = 0; i < size; i += 4) {
+  for (size_t i = 12; i < size; i += 4) {
     router_id neighbor_id = ntohs(*(unsigned short *)((char *)packet + i));
     cost_time cost = ntohs(*(unsigned short *)((char *)packet + i + 2));
     costMapEntry[neighbor_id] = cost;

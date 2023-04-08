@@ -1,4 +1,5 @@
 #include "RoutingProtocolImpl.h"
+#include <cstring>
 
 RoutingProtocolImpl::RoutingProtocolImpl(Node *n) : RoutingProtocol(n) {
   sys = n;
@@ -114,7 +115,7 @@ void RoutingProtocolImpl::recv(unsigned short port, void *packet, unsigned short
 
     case LS:
       if (protocol_type == P_LS) {
-        ls.recvLSP(port, packet, size);
+        ls.recvLSP(port, packet);
       } else {
         cerr << "unexpected protocol type. aborting." << endl;
         exit(1);
@@ -303,6 +304,7 @@ void RoutingProtocolImpl::sendData(port_number port, void *packet) {
       break;
 
     case P_LS:
+      // ls.sendData(target_router_id, size, port, packet);
       LSSendData(target_router_id, size, port, packet);
       break;
 
@@ -350,8 +352,10 @@ void RoutingProtocolImpl::LSSendData(router_id destRouterId, pkt_size size, port
     if (nextHopRouterId == it->second.to_router_id) {
       char *p = (char *)malloc(size);
       memcpy(p, packet, size);
-      
       sys->send(portNum, (void *)p, size);
+
+      // TODO: why sending directly won't work?
+      // sys->send(portNum, packet, size);
       free(packet);
       break;
     }

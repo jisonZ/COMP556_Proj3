@@ -12,11 +12,15 @@ class LinkState {
  public:
   void init(Node *sys, router_id id, port_number num_ports, portStatus_pointer portStatus,
             forwarding_pointer fwtp);
+  void sendData(router_id destRouterId, pkt_size size, port_number port, void *packet);
+  
   void floodLSP(port_number fromPort, void *packet, pkt_size size);
-  void recvLSP(port_number port, void *packet, pkt_size size);
+  void recvLSP(port_number port, void *packet);
   void sendLSP();
   void updateLSTable();
   bool isExpiredLSEntryRemoved();
+
+  void printLSForwardingTable();
 
  private:
   Node *sys;
