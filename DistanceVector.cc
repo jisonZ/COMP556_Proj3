@@ -93,7 +93,6 @@ void DistanceVector::recvPong(port_number port, router_id neighborId, cost_time 
   else {
     // re-connecting: DVTable has an entry for neighborId but port is not connected
     if (DVTable->find(neighborId) != DVTable->end() && !isConnected) {
-      // TODO: do we need if-else here?
       if ((*DVTable)[neighborId].cost > RTT) {
         updateDVTable(neighborId, RTT, neighborId);
         sendPacket();
@@ -146,7 +145,6 @@ void DistanceVector::recvPacket(port_number port, void *packet, unsigned short s
 
     if (cit == DVTable->end()) {
       // suppose we do not have a path to target_router_id
-      // TODO: is the second condition check necessary?
       if (recv_cost == INFINITY_COST || target_router_id == routerID) continue;
       insertDVEntry(target_router_id, recv_cost + source_cost, source_router_id);
       new_packet_list.emplace_back(target_router_id, recv_cost + source_cost);
