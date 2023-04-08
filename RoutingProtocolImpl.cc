@@ -135,6 +135,7 @@ void RoutingProtocolImpl::recvPongPacket(port_number port, char *packet) {
     portStatus[port].is_connected = true;
 
     handleDVRecv(port, neighborId, RTT, isConnected);
+    
   } else if (protocol_type == P_LS) {
     handleLSRecv(port, neighborId, RTT);
   } else {
@@ -363,8 +364,6 @@ void RoutingProtocolImpl::sendData(port_number port, void *packet) {
     cerr << "packet should be" << t << endl;
     exit(1);
   }
-  // auto sp = reinterpret_cast<unsigned short *>(packet);
-  // router_id target_router_id = ntohs(*(sp + 3));
 
   router_id target_router_id = (unsigned short)ntohs(*(unsigned short *)((char *)packet + 6));
   
@@ -373,13 +372,24 @@ void RoutingProtocolImpl::sendData(port_number port, void *packet) {
     free(packet);
     return;
   }
+  
+  unsigned short size = (unsigned short)ntohs(*(unsigned short *)((char *)packet + 2));
 
+  // no entry in forwardTable
   if (forwardTable.find(target_router_id) == forwardTable.end()) {
     return;
   }
-  // unsigned short size = *(reinterpret_cast<unsigned short *>(packet) + 1);
 
-  unsigned short size = (unsigned short)ntohs(*(unsigned short *)((char *)packet + 2));
-  router_id next_router = forwardTable[target_router_id];
-  sys->send(neighbors[next_router].port, packet, size);
+  router_id next_hop_router_id = forwardTable[target_router_id];
+
+  // next hop not in neighbors table
+  if (neighbors.find(next_hop_router_id) == neighbors.end()) {
+    return;
+  }
+
+  // cout << "before sendData ..." << endl;
+  
+  sys->send(neighbors[next_hop_router_id].port, packet, size);
+
+  // cout << "after sendData ..." << endl;
 }

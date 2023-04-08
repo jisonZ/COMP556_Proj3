@@ -31,7 +31,7 @@ void DistanceVector::recvPacket(port_number port, void *packet, unsigned short s
 
     // if cannot find neighbor, exit
     if (neighbors->find(source_router_id) == neighbors->end()) {
-        cout << "cannot find neighbor, exit" << endl;
+        // cout << "cannot find neighbor, exit" << endl;
         return;
     }
 
@@ -104,7 +104,7 @@ void DistanceVector::recvPacket(port_number port, void *packet, unsigned short s
         }
     }
     
-    cout << "recvPacket()" << endl;
+    // cout << "recvPacket()" << endl;
     printDVTable();
 
     if (!new_packet_list.empty())
@@ -123,7 +123,7 @@ void DistanceVector::insertNeighbors(router_id neighborId, port_number port, DVL
     // search for self routerID and cost
     for (auto it = DVList.begin() + 1; it != DVList.end(); it++)
     {
-        cout << "router id: " << it->first << ", cost: " << it->second << endl;
+        // cout << "router id: " << it->first << ", cost: " << it->second << endl;
         auto n = *it;
         if (n.first == routerId)
         {
@@ -138,7 +138,7 @@ void DistanceVector::updateDVTable(router_id destId, cost_time cost, router_id n
 {
     auto de = DVTable->find(destId);
     if (de == DVTable->end()) {
-        cout << "[updateDVTable] cannot find destId: " << destId << endl;
+        // cout << "[updateDVTable] cannot find destId: " << destId << endl;
         return;
     }
     de->second.next_hop_id = next_hop_id;
@@ -191,7 +191,7 @@ void DistanceVector::sendPacket(DVL &DVList)
             auto target_router_id = dv.first, cost = dv.second;
             auto next_hop_id = (*DVTable)[target_router_id].next_hop_id;
 
-            cout << "[sendPacket - DVList] target_router_id: " << target_router_id << ", next_hop_id: " << next_hop_id << endl;
+            // cout << "[sendPacket - DVList] target_router_id: " << target_router_id << ", next_hop_id: " << next_hop_id << endl;
 
             if (neighbors->find(next_hop_id) != neighbors->end() && neighbors->find(next_hop_id)->second.port == port_id)
             {
@@ -201,8 +201,8 @@ void DistanceVector::sendPacket(DVL &DVList)
             *(packet + 4 + index++) = htons(target_router_id);
             *(packet + 4 + index++) = htons(cost);
         }
-        cout << "sendPacket()" << endl;
-        printDVTable();
+        // cout << "sendPacket()" << endl;
+        // printDVTable();
         sys->send(port_id, msg, size);
     }
 }
