@@ -18,7 +18,7 @@ void DistanceVector::recvPacket(port_number port, void *packet, unsigned short s
     DVL DVList;
 
     // extract source id and (neighbor, cost) information from packet
-    changeDVPacketToPacketInfo(packet, DVList);
+    getDVPacketPayload(packet, DVList);
 
     // if receive empty info, exit
     if (DVList.size() == 0)

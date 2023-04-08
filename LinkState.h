@@ -7,13 +7,12 @@
 #include "utils.h"
 
 using seqNum_pointer = unordered_map<router_id, int> *;
-using cost_map_entry = unordered_map<router_id, cost_time>;
 
 class LinkState {
  public:
   void init(Node *sys, router_id id, port_number num_ports, portStatus_pointer portStatus,
             forwarding_pointer fwtp);
-  void floodLSP(port_number except_port_id, void *packet, pkt_size size);
+  void floodLSP(port_number fromPort, void *packet, pkt_size size);
   void recvLSP(port_number port, void *packet, pkt_size size);
   void sendLSP();
   void updateLSTable();

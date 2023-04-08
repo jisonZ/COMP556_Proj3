@@ -90,7 +90,7 @@ void RoutingProtocolImpl::handle_alarm(void *data) {
 }
 
 void RoutingProtocolImpl::recv(unsigned short port, void *packet, unsigned short size) {
-  switch (getPktType(packet)) {
+  switch (getPacketType(packet)) {
     case DATA:
       sendData(port, packet);
       break;
@@ -122,7 +122,7 @@ void RoutingProtocolImpl::recv(unsigned short port, void *packet, unsigned short
       break;
 
     default:
-      cerr << "unexpected msg type: " << getPktType(packet) << endl;
+      cerr << "unexpected msg type: " << getPacketType(packet) << endl;
       exit(1);
   }
 }
@@ -288,8 +288,8 @@ bool RoutingProtocolImpl::checkLSPortStatus() {
 }
 
 void RoutingProtocolImpl::sendData(port_number port, void *packet) {
-  if (getPktType(packet) != DATA) {
-    cerr << "packet type should be DATA, but got: " << getPktType(packet) << endl;
+  if (getPacketType(packet) != DATA) {
+    cerr << "packet type should be DATA, but got: " << getPacketType(packet) << endl;
     free(packet);
     exit(1);
   }
@@ -338,4 +338,22 @@ void RoutingProtocolImpl::DVSendData(router_id destRouterId, pkt_size size, port
 }
 
 void RoutingProtocolImpl::LSSendData(router_id destRouterId, pkt_size size, port_number port,
-                                     void *packet) {}
+                                     void *packet) {
+  if (destRouterId == routerID) {
+    free(packet);
+    return;
+  }
+
+  router_id nextHopRouterId = forwardingTable[destRouterId];
+  for (auto it = portStatus.begin(); it != portStatus.end(); ++it) {
+    port_number portNum = it->first;
+    if (nextHopRouterId == it->second.to_router_id) {
+      char *p = (char *)malloc(size);
+      memcpy(p, packet, size);
+      
+      sys->send(portNum, (void *)p, size);
+      free(packet);
+      break;
+    }
+  }
+}
