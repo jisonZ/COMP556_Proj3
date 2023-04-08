@@ -68,12 +68,14 @@ struct LSEntry {
 using neighbors_pointer = unordered_map<router_id, Neighbor> *;
 // port_number -> [to_router_id, cost, last_update_time, is_connect]
 using portStatus_pointer = unordered_map<port_number, PortEntry> *;
-// dest_ID -> next_hop_id
+// dest_router_id -> next_hop_router_id
 using forwarding_pointer = unordered_map<router_id, router_id> *;
+// dest_ID -> [next_hop_id, cost, last_update_time]
+using DVTable_pointer = unordered_map<router_id, DVEntry> *;
 
 ePacketType getPacketType(void *packet);
 void getDVPacketPayload(void *start, DVL &packetInfo);
-void getLSPacketPayload(void *packet, pkt_size &size, router_id &srcRouterId, seq_num &sequenceNum,
-                        cost_map_entry &costMapEntry);
+void getLSPacketPayload(void *packet, pkt_size &size, router_id &srcRouterId, 
+                        seq_num &sequenceNum, cost_map_entry &costMapEntry);
 
 #endif

@@ -1,5 +1,4 @@
 #include "LinkState.h"
-
 #include <cstring>
 
 void LinkState::init(Node *sys, router_id id, port_number numPorts, portStatus_pointer ports,
@@ -11,6 +10,7 @@ void LinkState::init(Node *sys, router_id id, port_number numPorts, portStatus_p
   this->forwardingTable = fwtp;
 }
 
+// forward data to next hop router according to entry in forwarding table 
 void LinkState::sendData(router_id destRouterId, pkt_size size, port_number port, void *packet) {
   if (destRouterId == routerID) {
     free(packet);
@@ -30,6 +30,25 @@ void LinkState::sendData(router_id destRouterId, pkt_size size, port_number port
   }
 }
 
+// if Pong received, send LSP to update if: 1) new neighbor found 2) changes occur
+void LinkState::recvPong(port_number port, router_id neighborId, cost_time RTT) {
+  bool portStatusFound = portStatus->find(port) != portStatus->end();
+  bool portStatusUpdated = false;
+
+  if (portStatusFound) {
+    PortEntry oldPortStatus = (*portStatus)[port];
+    portStatusUpdated = oldPortStatus.cost != RTT || oldPortStatus.to_router_id != neighborId;
+  }
+
+  (*portStatus)[port] = {neighborId, RTT, sys->time()};
+
+  if (!portStatusFound || portStatusUpdated) {
+    updateLSTable();
+    sendLSP();
+  }
+}
+
+// recv newer LSP and flood to all neighbors
 void LinkState::recvLSP(port_number port, void *packet) {
   pkt_size size;
   router_id sourceRouterId;
@@ -42,7 +61,7 @@ void LinkState::recvLSP(port_number port, void *packet) {
       seq_num_map[sourceRouterId] < receivedSeqNum) {
     seq_num_map[sourceRouterId] = receivedSeqNum;
 
-    if (hasCostMapChanged(sourceRouterId, costMapEntry)) {
+    if (hasCostMapEntryChanged(sourceRouterId, costMapEntry)) {
       cost_map[sourceRouterId] = costMapEntry;
       updateLSTable();
     }
@@ -52,6 +71,7 @@ void LinkState::recvLSP(port_number port, void *packet) {
   free(packet);
 }
 
+// LS flooding
 void LinkState::floodLSP(port_number fromPort, void *packet, pkt_size size) {
   for (port_number portNum = 0; portNum < numPorts; ++portNum) {
     // avoid flooding LSP to incoming port
@@ -62,6 +82,7 @@ void LinkState::floodLSP(port_number fromPort, void *packet, pkt_size size) {
   }
 }
 
+// assemble LSP and send when: 1) periodically 2) on-demand when link state changes
 void LinkState::sendLSP() {
   unordered_map<router_id, cost_time> neighborIdToCost;
   for (auto it = portStatus->begin(); it != portStatus->end(); ++it) {
@@ -89,6 +110,7 @@ void LinkState::sendLSP() {
   ++sequenceNum;
 }
 
+// main logic for LS: dijkstra's algorithm to calculate shortest path
 void LinkState::updateLSTable() {
   unordered_map<router_id, pair<cost_time, router_id>> distances;
   unordered_set<router_id> unvisited_routers;
@@ -112,7 +134,7 @@ void LinkState::updateLSTable() {
   router_id cur_router_id;
   cost_time min_cost;
 
-  // Dijkstra
+  // dijkstra
   while (!unvisited_routers.empty()) {
     // Find the shortest router to root router
     min_cost = INFINITY_COST;
@@ -159,18 +181,10 @@ void LinkState::updateLSTable() {
   printLSForwardingTable();
 }
 
-router_id LinkState::getNextHop(unordered_map<router_id, pair<cost_time, router_id>> distances,
-                                router_id dest_router) {
-  router_id cur_router_id = dest_router;
-  while (distances[cur_router_id].second != routerID)
-    cur_router_id = distances[cur_router_id].second;
-  return cur_router_id;
-}
-
 // check and remove LS entries in LSTable which are older than 45 seconds
 bool LinkState::isExpiredLSEntryRemoved() {
   unsigned int now;
-  vector<router_id> expired;  // store router id of expired LS entries
+  vector<router_id> expired;  // store router_id of expired LS entries
 
   for (auto it : this->LSTable) {
     now = sys->time();
@@ -186,20 +200,41 @@ bool LinkState::isExpiredLSEntryRemoved() {
   return !expired.empty();
 }
 
+// check if link is expired (over 15 seconds) and should be declared dead
+bool LinkState::checkLink() {
+  bool is_expired = false;
+  for (auto it = portStatus->begin(); it != portStatus->end(); ++it) {
+    if (sys->time() - (it->second.last_update_time) > 15 * 1000) {
+      it->second.cost = INFINITY_COST;
+      it->second.is_connected = false;
+      is_expired = true;
+    }
+  }
+  return is_expired;
+}
+
+// get router_id of the next hop router for a given dest_router
+router_id LinkState::getNextHop(unordered_map<router_id, pair<cost_time, router_id>> distances,
+                                router_id dest_router) {
+  router_id cur_router_id = dest_router;
+  while (distances[cur_router_id].second != routerID)
+    cur_router_id = distances[cur_router_id].second;
+  return cur_router_id;
+}
+
 // check if [neighbor id, cost] info in received LSP packet is different from cost_map
-bool LinkState::hasCostMapChanged(router_id neighbor_id,
-                                  unordered_map<router_id, cost_time> neighbor_id_to_cost) {
+bool LinkState::hasCostMapEntryChanged(router_id neighbor_id, cost_map_entry costMapEntry) {
   // cost_map does not contain info from this neighbor yet
   if (this->cost_map.find(neighbor_id) == this->cost_map.end()) {
-    return !neighbor_id_to_cost.empty();
+    return !costMapEntry.empty();
   } else {
     //                         cost_map_entry
     // cost_map: [router_id -> [neighbor_router_id -> cost]]
     cost_map_entry currCostMapEntry = this->cost_map[neighbor_id];
-    if (currCostMapEntry.size() != neighbor_id_to_cost.size()) {
+    if (currCostMapEntry.size() != costMapEntry.size()) {
       return true;
     } else {
-      for (auto it : neighbor_id_to_cost) {
+      for (auto it : costMapEntry) {
         router_id neighbor_id = it.first;
         cost_time neighbor_cost = it.second;
         if (currCostMapEntry.find(neighbor_id) == currCostMapEntry.end()) {

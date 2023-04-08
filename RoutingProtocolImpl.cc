@@ -75,7 +75,7 @@ void RoutingProtocolImpl::handle_alarm(void *data) {
       if (protocol_type == P_DV) {
         dv.checkLink();
       } else {
-        if (checkLSPortStatus()) {
+        if (ls.checkLink()) {
           ls.sendLSP();
         }
         if (ls.isExpiredLSEntryRemoved()) {
@@ -124,7 +124,7 @@ void RoutingProtocolImpl::recv(unsigned short port, void *packet, unsigned short
       break;
 
     default:
-      cerr << "unexpected msg type: " << getPacketType(packet) << endl;
+      cerr << "unexpected msg type: " << getPacketType(packet) << ". aborting." << endl;
       exit(1);
   }
 }
@@ -178,10 +178,10 @@ void RoutingProtocolImpl::recvPongPacket(port_number port, char *packet) {
     bool isConnected = portStatus[port].is_connected;
     portStatus[port].is_connected = true;
 
-    handleDVRecv(port, neighborId, RTT, isConnected);
+    dv.recvPong(port, neighborId, RTT, isConnected);
 
   } else if (protocol_type == P_LS) {
-    handleLSRecv(port, neighborId, RTT);
+    ls.recvPong(port, neighborId, RTT);
 
   } else {
     cerr << "unexpected protocol type. aborting." << endl;
@@ -189,105 +189,105 @@ void RoutingProtocolImpl::recvPongPacket(port_number port, char *packet) {
   }
 }
 
-void RoutingProtocolImpl::handleDVRecv(port_number port, router_id neighborId, cost_time RTT,
-                                       bool isConnected) {
-  // check if this neighbor is already connected before
-  if (neighbors.find(neighborId) != neighbors.end() && isConnected) {
-    // update connected neighbor's cost and port number
-    neighbors[neighborId].port = port;
-    cost_time oldRTT = neighbors[neighborId].cost;
-    neighbors[neighborId].cost = RTT;
-    cost_time rttDiff = RTT - oldRTT;
+// void RoutingProtocolImpl::handleDVRecv(port_number port, router_id neighborId, cost_time RTT,
+//                                        bool isConnected) {
+//   // check if this neighbor is already connected before
+//   if (neighbors.find(neighborId) != neighbors.end() && isConnected) {
+//     // update connected neighbor's cost and port number
+//     neighbors[neighborId].port = port;
+//     cost_time oldRTT = neighbors[neighborId].cost;
+//     neighbors[neighborId].cost = RTT;
+//     cost_time rttDiff = RTT - oldRTT;
 
-    // cost has changed
-    if (rttDiff != 0) {
-      for (auto it = dv.DVTable->begin(); it != dv.DVTable->end(); ++it) {
-        it->second.last_update_time = sys->time();
+//     // cost has changed
+//     if (rttDiff != 0) {
+//       for (auto it = dv.DVTable->begin(); it != dv.DVTable->end(); ++it) {
+//         it->second.last_update_time = sys->time();
 
-        // router_id of current entry in DVTable
-        router_id currRouterId = it->first;
+//         // router_id of current entry in DVTable
+//         router_id currRouterId = it->first;
 
-        // current router use neighborId as next hop
-        if (it->second.next_hop_id == neighborId) {
-          cost_time newRTT = it->second.cost + rttDiff;
+//         // current router use neighborId as next hop
+//         if (it->second.next_hop_id == neighborId) {
+//           cost_time newRTT = it->second.cost + rttDiff;
 
-          // going to next_hop router is more expensive now -> go directly from
-          // currRouterId instead
-          if (neighbors.find(currRouterId) != neighbors.end() &&
-              neighbors[currRouterId].cost < newRTT) {
-            it->second.next_hop_id = currRouterId;
-            it->second.cost = neighbors[currRouterId].cost;
-            forwardingTable[currRouterId] = currRouterId;
-          } else {  // update cost
-            it->second.cost = newRTT;
-          }
-        }
-        // current router is a direct neighbor, and now it has a new min cost
-        else if (currRouterId == neighborId && (*dv.DVTable)[neighborId].cost > RTT) {
-          it->second.next_hop_id = neighborId;
-          it->second.cost = RTT;
-          forwardingTable[neighborId] = neighborId;
-        }
-      }
-      dv.sendPacket();
-    }
-    // cost has not changed, just update the timestamp for each entry
-    else {
-      for (auto it = dv.DVTable->begin(); it != dv.DVTable->end(); ++it) {
-        if (it->second.next_hop_id == neighborId || it->first == neighborId) {
-          it->second.last_update_time = sys->time();
-        }
-      }
-    }
-  }
-  // neighbor is either new or re-connecting
-  else {
-    // re-connecting: DVTable has an entry for neighborId but port is not connected
-    if (dv.DVTable->find(neighborId) != dv.DVTable->end() && !isConnected) {
-      // TODO: do we need if-else here?
-      if ((*dv.DVTable)[neighborId].cost > RTT) {
-        dv.updateDVTable(neighborId, RTT, neighborId);
-        dv.sendPacket();
-      } else {
-        (*dv.DVTable)[neighborId].last_update_time = sys->time();
-      }
-      // new neighbor
-    } else {
-      dv.insertDVEntry(neighborId, RTT, neighborId);
-      dv.sendPacket();
-    }
-    forwardingTable[neighborId] = neighborId;
-  }
-}
+//           // going to next_hop router is more expensive now -> go directly from
+//           // currRouterId instead
+//           if (neighbors.find(currRouterId) != neighbors.end() &&
+//               neighbors[currRouterId].cost < newRTT) {
+//             it->second.next_hop_id = currRouterId;
+//             it->second.cost = neighbors[currRouterId].cost;
+//             forwardingTable[currRouterId] = currRouterId;
+//           } else {  // update cost
+//             it->second.cost = newRTT;
+//           }
+//         }
+//         // current router is a direct neighbor, and now it has a new min cost
+//         else if (currRouterId == neighborId && (*dv.DVTable)[neighborId].cost > RTT) {
+//           it->second.next_hop_id = neighborId;
+//           it->second.cost = RTT;
+//           forwardingTable[neighborId] = neighborId;
+//         }
+//       }
+//       dv.sendPacket();
+//     }
+//     // cost has not changed, just update the timestamp for each entry
+//     else {
+//       for (auto it = dv.DVTable->begin(); it != dv.DVTable->end(); ++it) {
+//         if (it->second.next_hop_id == neighborId || it->first == neighborId) {
+//           it->second.last_update_time = sys->time();
+//         }
+//       }
+//     }
+//   }
+//   // neighbor is either new or re-connecting
+//   else {
+//     // re-connecting: DVTable has an entry for neighborId but port is not connected
+//     if (dv.DVTable->find(neighborId) != dv.DVTable->end() && !isConnected) {
+//       // TODO: do we need if-else here?
+//       if ((*dv.DVTable)[neighborId].cost > RTT) {
+//         dv.updateDVTable(neighborId, RTT, neighborId);
+//         dv.sendPacket();
+//       } else {
+//         (*dv.DVTable)[neighborId].last_update_time = sys->time();
+//       }
+//       // new neighbor
+//     } else {
+//       dv.insertDVEntry(neighborId, RTT, neighborId);
+//       dv.sendPacket();
+//     }
+//     forwardingTable[neighborId] = neighborId;
+//   }
+// }
 
-void RoutingProtocolImpl::handleLSRecv(port_number port, router_id neighborId, cost_time RTT) {
-  bool portStatusFound = portStatus.find(port) != portStatus.end();
-  bool portStatusUpdated = false;
+// void RoutingProtocolImpl::handleLSRecv(port_number port, router_id neighborId, cost_time RTT) {
+//   bool portStatusFound = portStatus.find(port) != portStatus.end();
+//   bool portStatusUpdated = false;
 
-  if (portStatusFound) {
-    PortEntry oldPortStatus = portStatus[port];
-    portStatusUpdated = oldPortStatus.cost != RTT || oldPortStatus.to_router_id != neighborId;
-  }
+//   if (portStatusFound) {
+//     PortEntry oldPortStatus = portStatus[port];
+//     portStatusUpdated = oldPortStatus.cost != RTT || oldPortStatus.to_router_id != neighborId;
+//   }
 
-  portStatus[port] = {neighborId, RTT, sys->time()};
+//   portStatus[port] = {neighborId, RTT, sys->time()};
 
-  if (!portStatusFound || portStatusUpdated) {
-    ls.updateLSTable();
-    ls.sendLSP();
-  }
-}
+//   if (!portStatusFound || portStatusUpdated) {
+//     ls.updateLSTable();
+//     ls.sendLSP();
+//   }
+// }
 
-bool RoutingProtocolImpl::checkLSPortStatus() {
-  bool is_expired = false;
-  for (auto it = portStatus.begin(); it != portStatus.end(); ++it) {
-    if (sys->time() - (it->second.last_update_time) > 15 * 1000) {
-      it->second.cost = INFINITY_COST;
-      it->second.is_connected = false;
-      is_expired = true;
-    }
-  }
-  return is_expired;
-}
+// bool RoutingProtocolImpl::checkLink() {
+//   bool is_expired = false;
+//   for (auto it = portStatus.begin(); it != portStatus.end(); ++it) {
+//     if (sys->time() - (it->second.last_update_time) > 15 * 1000) {
+//       it->second.cost = INFINITY_COST;
+//       it->second.is_connected = false;
+//       is_expired = true;
+//     }
+//   }
+//   return is_expired;
+// }
 
 void RoutingProtocolImpl::sendData(port_number port, void *packet) {
   if (getPacketType(packet) != DATA) {
@@ -301,7 +301,8 @@ void RoutingProtocolImpl::sendData(port_number port, void *packet) {
 
   switch (protocol_type) {
     case P_DV:
-      DVSendData(target_router_id, size, port, packet);
+      dv.sendData(target_router_id, size, port, packet);
+      // DVSendData(target_router_id, size, port, packet);
       break;
 
     case P_LS:
@@ -316,47 +317,47 @@ void RoutingProtocolImpl::sendData(port_number port, void *packet) {
   }
 }
 
-void RoutingProtocolImpl::DVSendData(router_id destRouterId, pkt_size size, port_number port,
-                                     void *packet) {
-  if (destRouterId == routerID) {  // drop DATA packet sending back to self
-    // delete[] static_cast<char *>(packet);
-    free(packet);
-    return;
-  }
+// void RoutingProtocolImpl::DVSendData(router_id destRouterId, pkt_size size, port_number port,
+//                                      void *packet) {
+//   if (destRouterId == routerID) {  // drop DATA packet sending back to self
+//     // delete[] static_cast<char *>(packet);
+//     free(packet);
+//     return;
+//   }
 
-  // drop packet if no entry in forwardingTable
-  if (forwardingTable.find(destRouterId) == forwardingTable.end()) {
-    return;
-  }
-  router_id nextHopRouterId = forwardingTable[destRouterId];
+//   // drop packet if no entry in forwardingTable
+//   if (forwardingTable.find(destRouterId) == forwardingTable.end()) {
+//     return;
+//   }
+//   router_id nextHopRouterId = forwardingTable[destRouterId];
 
-  // drop packet if next hop not in neighbors table
-  if (neighbors.find(nextHopRouterId) == neighbors.end()) {
-    return;
-  }
+//   // drop packet if next hop not in neighbors table
+//   if (neighbors.find(nextHopRouterId) == neighbors.end()) {
+//     return;
+//   }
 
-  sys->send(neighbors[nextHopRouterId].port, packet, size);
-}
+//   sys->send(neighbors[nextHopRouterId].port, packet, size);
+// }
 
-void RoutingProtocolImpl::LSSendData(router_id destRouterId, pkt_size size, port_number port,
-                                     void *packet) {
-  if (destRouterId == routerID) {
-    free(packet);
-    return;
-  }
+// void RoutingProtocolImpl::LSSendData(router_id destRouterId, pkt_size size, port_number port,
+//                                      void *packet) {
+//   if (destRouterId == routerID) {
+//     free(packet);
+//     return;
+//   }
 
-  router_id nextHopRouterId = forwardingTable[destRouterId];
-  for (auto it = portStatus.begin(); it != portStatus.end(); ++it) {
-    port_number portNum = it->first;
-    if (nextHopRouterId == it->second.to_router_id) {
-      char *p = (char *)malloc(size);
-      memcpy(p, packet, size);
-      sys->send(portNum, (void *)p, size);
+//   router_id nextHopRouterId = forwardingTable[destRouterId];
+//   for (auto it = portStatus.begin(); it != portStatus.end(); ++it) {
+//     port_number portNum = it->first;
+//     if (nextHopRouterId == it->second.to_router_id) {
+//       char *p = (char *)malloc(size);
+//       memcpy(p, packet, size);
+//       sys->send(portNum, (void *)p, size);
 
-      // TODO: When to use memcpy? Why sending directly won't work?
-      // sys->send(portNum, packet, size);
-      free(packet);
-      break;
-    }
-  }
-}
+//       // TODO: When to use memcpy? Why sending directly won't work?
+//       // sys->send(portNum, packet, size);
+//       free(packet);
+//       break;
+//     }
+//   }
+// }

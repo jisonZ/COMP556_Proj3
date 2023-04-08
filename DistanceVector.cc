@@ -2,12 +2,12 @@
 
 #include <cstring>
 
-void DistanceVector::init(Node *sys, router_id routerId, unsigned short numPorts,
+void DistanceVector::init(Node *sys, router_id routerID, unsigned short numPorts,
                           neighbors_pointer neighbors, portStatus_pointer portStatus,
                           forwarding_pointer forwarding) {
   // initialize tables and neighbor information
   this->sys = sys;
-  this->routerId = routerId;
+  this->routerID = routerID;
   this->numPorts = numPorts;
   this->neighbors = neighbors;
   this->portStatus = portStatus;
@@ -15,6 +15,101 @@ void DistanceVector::init(Node *sys, router_id routerId, unsigned short numPorts
   this->DVTable = new unordered_map<router_id, DVEntry>();
 }
 
+// forward data to next hop router according to entry in forwarding table 
+void DistanceVector::sendData(router_id destRouterId, pkt_size size, port_number port, void *packet) {
+  // drop DATA packet sending back to self
+  if (destRouterId == routerID) {
+    free(packet);
+    return;
+  }
+
+  // drop DATA packet if no entry in forwardingTable
+  if (forwardingTable->find(destRouterId) == forwardingTable->end()) {
+    return;
+  }
+  router_id nextHopRouterId = (*forwardingTable)[destRouterId];
+
+  // drop DATA packet if next hop not in neighbors table
+  if (neighbors->find(nextHopRouterId) == neighbors->end()) {
+    return;
+  }
+
+  sys->send((*neighbors)[nextHopRouterId].port, packet, size);
+}
+
+// if Pong received, send DV message when: 
+// 1) new neighbor detected or disconnected neighbor reconnecting
+// 2) local link cost change -> need to notify all affected neighbors 
+void DistanceVector::recvPong(port_number port, router_id neighborId, cost_time RTT,
+                              bool isConnected) {
+  // check if this neighbor is already connected before
+  if (neighbors->find(neighborId) != neighbors->end() && isConnected) {
+    // update connected neighbor's cost and port number
+    (*neighbors)[neighborId].port = port;
+    cost_time oldRTT = (*neighbors)[neighborId].cost;
+    (*neighbors)[neighborId].cost = RTT;
+    cost_time rttDiff = RTT - oldRTT;
+
+    // cost has changed
+    if (rttDiff != 0) {
+      for (auto it = DVTable->begin(); it != DVTable->end(); ++it) {
+        it->second.last_update_time = sys->time();
+
+        // router_id of current entry in DVTable
+        router_id currRouterId = it->first;
+
+        // current router use neighborId as next hop
+        if (it->second.next_hop_id == neighborId) {
+          cost_time newRTT = it->second.cost + rttDiff;
+
+          // going to next_hop router is more expensive now -> go directly from currRouterId instead
+          if (neighbors->find(currRouterId) != neighbors->end() && (*neighbors)[currRouterId].cost < newRTT) {
+            it->second.next_hop_id = currRouterId;
+            it->second.cost = (*neighbors)[currRouterId].cost;
+            (*forwardingTable)[currRouterId] = currRouterId;
+          } else {  // update cost
+            it->second.cost = newRTT;
+          }
+        }
+        // current router is a direct neighbor, and now it has a new min cost
+        else if (currRouterId == neighborId && (*DVTable)[neighborId].cost > RTT) {
+          it->second.next_hop_id = neighborId;
+          it->second.cost = RTT;
+          (*forwardingTable)[neighborId] = neighborId;
+        }
+      }
+      sendPacket();
+    }
+    // cost has not changed, just update the timestamp for each entry
+    else {
+      for (auto it = DVTable->begin(); it != DVTable->end(); ++it) {
+        if (it->second.next_hop_id == neighborId || it->first == neighborId) {
+          it->second.last_update_time = sys->time();
+        }
+      }
+    }
+  }
+  // neighbor is either new or re-connecting
+  else {
+    // re-connecting: DVTable has an entry for neighborId but port is not connected
+    if (DVTable->find(neighborId) != DVTable->end() && !isConnected) {
+      // TODO: do we need if-else here?
+      if ((*DVTable)[neighborId].cost > RTT) {
+        updateDVTable(neighborId, RTT, neighborId);
+        sendPacket();
+      } else {
+        (*DVTable)[neighborId].last_update_time = sys->time();
+      }
+      // new neighbor
+    } else {
+      insertDVEntry(neighborId, RTT, neighborId);
+      sendPacket();
+    }
+    (*forwardingTable)[neighborId] = neighborId;
+  }
+}
+
+// main logic of DV: exchange DV information with neighbors
 void DistanceVector::recvPacket(port_number port, void *packet, unsigned short size) {
   DVL DVList;
 
@@ -52,7 +147,7 @@ void DistanceVector::recvPacket(port_number port, void *packet, unsigned short s
     if (cit == DVTable->end()) {
       // suppose we do not have a path to target_router_id
       // TODO: is the second condition check necessary?
-      if (recv_cost == INFINITY_COST || target_router_id == routerId) continue;
+      if (recv_cost == INFINITY_COST || target_router_id == routerID) continue;
       insertDVEntry(target_router_id, recv_cost + source_cost, source_router_id);
       new_packet_list.emplace_back(target_router_id, recv_cost + source_cost);
       continue;
@@ -93,13 +188,13 @@ void DistanceVector::recvPacket(port_number port, void *packet, unsigned short s
     }
   }
 
-  // cout << "recvPacket()" << endl;
   printDVTable();
 
   if (!new_packet_list.empty()) {
     sendPacket(new_packet_list);
   }
-  delete[] (char *)packet;
+  // delete[] (char *)packet;
+  free(packet);
 }
 
 void DistanceVector::insertNeighbors(router_id neighborId, port_number port, DVL &DVList) {
@@ -108,9 +203,8 @@ void DistanceVector::insertNeighbors(router_id neighborId, port_number port, DVL
 
   // search for self routerID and cost
   for (auto it = DVList.begin() + 1; it != DVList.end(); it++) {
-    // cout << "router id: " << it->first << ", cost: " << it->second << endl;
     auto n = *it;
-    if (n.first == routerId) {
+    if (n.first == routerID) {
       Neighbor newNeighbor(port, n.second);
       (*neighbors)[neighborId] = newNeighbor;
       break;
@@ -121,7 +215,6 @@ void DistanceVector::insertNeighbors(router_id neighborId, port_number port, DVL
 void DistanceVector::updateDVTable(router_id destId, cost_time cost, router_id next_hop_id) {
   auto de = DVTable->find(destId);
   if (de == DVTable->end()) {
-    // cout << "[updateDVTable] cannot find destId: " << destId << endl;
     return;
   }
   de->second.next_hop_id = next_hop_id;
@@ -152,10 +245,9 @@ void DistanceVector::sendPacket(DVL &DVList) {
     char *msg = new char[size];
     *msg = (unsigned char)DV;
     auto packet = (unsigned short *)msg;
-    // cout << "[sendPacket - from packet] size: " << size << ", routerId: " << routerId << ",
-    // to_router_id: " << pit->second.to_router_id << endl;
+
     *(packet + 1) = htons(size);
-    *(packet + 2) = htons(routerId);
+    *(packet + 2) = htons(routerID);
     *(packet + 3) = htons(pit->second.to_router_id);
 
     // iterate DV List
@@ -165,9 +257,6 @@ void DistanceVector::sendPacket(DVL &DVList) {
       auto target_router_id = dv.first, cost = dv.second;
       auto next_hop_id = (*DVTable)[target_router_id].next_hop_id;
 
-      // cout << "[sendPacket - DVList] target_router_id: " << target_router_id << ", next_hop_id: "
-      // << next_hop_id << endl;
-
       if (neighbors->find(next_hop_id) != neighbors->end() &&
           neighbors->find(next_hop_id)->second.port == port_id) {
         cost = INFINITY_COST;
@@ -176,14 +265,15 @@ void DistanceVector::sendPacket(DVL &DVList) {
       *(packet + 4 + index++) = htons(target_router_id);
       *(packet + 4 + index++) = htons(cost);
     }
-    // cout << "sendPacket()" << endl;
-    printDVTable();
+
+    // printDVTable();
 
     // TODO: do we need memcpy?
     sys->send(port_id, msg, size);
   }
 }
 
+// assemble ans send DV message when: 1) periodically 2) on-demanc when DV info changes
 void DistanceVector::sendPacket() {
   DVL DVList{};
   for (auto it = DVTable->begin(); it != DVTable->end(); ++it) {

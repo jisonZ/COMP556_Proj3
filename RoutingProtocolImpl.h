@@ -41,12 +41,12 @@ public:
   // that the packet is generated locally and not received from
   // a neighbor router.
 
-  void sendData(port_number port, void* packet);
   void sendPingPacket();
-  void sendPongPacket(port_number port, char *packet, unsigned short size);
+  void sendPongPacket(port_number port, char *packet, pkt_size size);
   void recvPongPacket(port_number port, char *packet);
+  void sendData(port_number port, void* packet);
 
-  bool checkLSPortStatus();
+  // bool checkLink();
 
 private:
   Node *sys; // To store Node object; used to access GSR9999 interfaces
@@ -64,11 +64,11 @@ private:
   // ls
   LinkState ls;
 
-  void handleDVRecv(port_number port, router_id neighbor_id, cost_time RTT, bool isConnected);
-  void handleLSRecv(port_number port, router_id neighbor_id, cost_time RTT);
+  // void handleDVRecv(port_number port, router_id neighbor_id, cost_time RTT, bool isConnected);
+  // void handleLSRecv(port_number port, router_id neighbor_id, cost_time RTT);
 
-  void DVSendData(router_id destRouterId, pkt_size size, port_number port, void *packet);
-  void LSSendData(router_id destRouterId, pkt_size size, port_number port, void *packet);
+  // void DVSendData(router_id destRouterId, pkt_size size, port_number port, void *packet);
+  // void LSSendData(router_id destRouterId, pkt_size size, port_number port, void *packet);
 };
 
 #endif
