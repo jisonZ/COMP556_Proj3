@@ -1,4 +1,5 @@
 #include "RoutingProtocolImpl.h"
+
 #include <cstring>
 
 RoutingProtocolImpl::RoutingProtocolImpl(Node *n) : RoutingProtocol(n) {
@@ -304,8 +305,8 @@ void RoutingProtocolImpl::sendData(port_number port, void *packet) {
       break;
 
     case P_LS:
-      // ls.sendData(target_router_id, size, port, packet);
-      LSSendData(target_router_id, size, port, packet);
+      ls.sendData(target_router_id, size, port, packet);
+      // LSSendData(target_router_id, size, port, packet);
       break;
 
     default:
@@ -334,9 +335,7 @@ void RoutingProtocolImpl::DVSendData(router_id destRouterId, pkt_size size, port
     return;
   }
 
-  // cout << "before DVSendData ..." << endl;
   sys->send(neighbors[nextHopRouterId].port, packet, size);
-  // cout << "after DVSendData ..." << endl;
 }
 
 void RoutingProtocolImpl::LSSendData(router_id destRouterId, pkt_size size, port_number port,
@@ -354,7 +353,7 @@ void RoutingProtocolImpl::LSSendData(router_id destRouterId, pkt_size size, port
       memcpy(p, packet, size);
       sys->send(portNum, (void *)p, size);
 
-      // TODO: why sending directly won't work?
+      // TODO: When to use memcpy? Why sending directly won't work?
       // sys->send(portNum, packet, size);
       free(packet);
       break;

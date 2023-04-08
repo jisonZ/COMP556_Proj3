@@ -56,8 +56,6 @@ void LinkState::floodLSP(port_number fromPort, void *packet, pkt_size size) {
   for (port_number portNum = 0; portNum < numPorts; ++portNum) {
     // avoid flooding LSP to incoming port
     if (portNum == fromPort) continue;
-    // char *new_data = strdup(static_cast<char *>(packet));
-    // sys->send(portNum, new_data, size);
     char *floodingPacket = (char *)malloc(size);
     memcpy(floodingPacket, packet, size);
     sys->send(portNum, (void *)floodingPacket, size);
@@ -85,6 +83,7 @@ void LinkState::sendLSP() {
       *(unsigned short *)(packet + i + 2) = (unsigned short)htons(it->second);
       i += 4;
     }
+
     sys->send(it->first, packet, size);
   }
   ++sequenceNum;
@@ -115,7 +114,6 @@ void LinkState::updateLSTable() {
 
   // Dijkstra
   while (!unvisited_routers.empty()) {
-    // cout << "---Begin---" << endl;
     // Find the shortest router to root router
     min_cost = INFINITY_COST;
     for (auto it = unvisited_routers.begin(); it != unvisited_routers.end(); ++it) {
