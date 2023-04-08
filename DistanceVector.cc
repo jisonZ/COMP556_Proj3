@@ -178,7 +178,7 @@ void DistanceVector::sendPacket(DVL &DVList)
         char *msg = new char[size];
         *msg = (unsigned char)DV;
         auto packet = (unsigned short *)msg;
-        cout << "[sendPacket - from packet] size: " << size << ", routerId: " << routerId << ", to_router_id: " << pit->second.to_router_id << endl;
+        // cout << "[sendPacket - from packet] size: " << size << ", routerId: " << routerId << ", to_router_id: " << pit->second.to_router_id << endl;
         *(packet + 1) = htons(size);
         *(packet + 2) = htons(routerId);
         *(packet + 3) = htons(pit->second.to_router_id);

@@ -42,5 +42,5 @@ LinkState.o: LinkState.h
 utils.o: utils.h
 
 clean:
-	rm -f *.o Simulator
+	rm -f *.o Simulator core.*
 
