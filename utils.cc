@@ -6,11 +6,10 @@ ePacketType getPacketType(void *packet) {
   return (ePacketType)(*((unsigned char *)packet)); 
 };
 
-// extract payload from DV packet
-// format of packetInfo list:
+// extract payload from DV packet into packetInfo list
 // line 0: (source router id, destination router id)
-// line 1: (node id, cost 1)
-// line 2: (node id, cost 2)
+// line 1: (node id 1, cost 1)
+// line 2: (node id 2, cost 2)
 // ...
 void getDVPacketPayload(void *start, DVL &packetInfo) {
   /*
@@ -31,7 +30,8 @@ void getDVPacketPayload(void *start, DVL &packetInfo) {
   return;
 };
 
-// extract payload from LS packet (neighbor id, cost)
+// extract payload from LS packet into costMapEntry
+// (neighbor id, cost)
 void getLSPacketPayload(void *packet, pkt_size &size, router_id &srcRouterId, seq_num &sequenceNum,
                         cost_map_entry &costMapEntry) {
   size = (unsigned short)ntohs(*(unsigned short *)((char *)packet + 2));
